@@ -71,13 +71,24 @@ class VenoxChat {
 
     extractUserInfo() {
         try {
-            const avatarImg = document.querySelector('.avatar img[alt="VenoX"], .p-navgroup-link img');
             const userLink = document.querySelector('.p-navgroup-link .p-navgroup-linkText');
+            const avatarImg = document.querySelector('.p-navgroup-link .avatar img');
             
-            if (avatarImg && userLink) {
-                this.currentUser.name = userLink.textContent.trim() || 'VenoX';
-                this.currentUser.avatar = avatarImg.src;
+            if (userLink) {
+                this.currentUser.name = userLink.textContent.trim();
                 this.currentUser.isAdmin = this.currentUser.name === 'VenoX';
+                
+                if (avatarImg && avatarImg.src) {
+                    // Avatar src'den tam URL'yi al
+                    let avatarSrc = avatarImg.src;
+                    if (avatarSrc.includes('/data/avatars/')) {
+                        // Eğer relative path ise, base URL ekle
+                        if (avatarSrc.startsWith('/')) {
+                            avatarSrc = window.location.origin + avatarSrc;
+                        }
+                    }
+                    this.currentUser.avatar = avatarSrc;
+                }
             }
         } catch (e) {
             console.log('Kullanıcı bilgileri çıkarılamadı, varsayılan kullanılıyor');
@@ -181,9 +192,22 @@ class VenoxChat {
         messageDiv.className = 'vx-message';
         
         const isUserAdmin = username === 'VenoX' || username === this.currentUser.name && this.currentUser.isAdmin;
-        const avatarSrc = isCurrentUser && this.currentUser.avatar ? 
-            this.currentUser.avatar : 
-            `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=3498db&color=ffffff&size=32`;
+        
+        let avatarSrc;
+        if (isCurrentUser && this.currentUser.avatar) {
+            avatarSrc = this.currentUser.avatar;
+        } else {
+            // Simulated users için farklı avatarlar
+            const avatarMap = {
+                'gokaysevinc': 'https://cheatglobal.com/data/avatars/s/315/315079.jpg?1758126945',
+                'V4S': 'https://cheatglobal.com/data/avatars/s/100/100001.jpg?1234567890',
+                'TestUser': 'https://ui-avatars.com/api/?name=TestUser&background=2980b9&color=ffffff&size=32',
+                'Player123': 'https://ui-avatars.com/api/?name=Player123&background=27ae60&color=ffffff&size=32',
+                'GameMaster': 'https://ui-avatars.com/api/?name=GameMaster&background=8e44ad&color=ffffff&size=32'
+            };
+            
+            avatarSrc = avatarMap[username] || `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=3498db&color=ffffff&size=32`;
+        }
         
         messageDiv.innerHTML = `
             <img src="${avatarSrc}" alt="${username}" class="vx-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=3498db&color=ffffff&size=32'">
@@ -257,15 +281,41 @@ class VenoxChat {
         }, 1000);
     }
 
-    muteUser(username) {
+    async muteUser(username) {
         if (!this.currentUser.isAdmin) return;
-        this.mutedUsers.add(username);
+        
+        try {
+            await this.apiRequest('admin/mute', {
+                method: 'POST',
+                body: JSON.stringify({
+                    adminUser: this.currentUser.name,
+                    targetUser: username
+                })
+            });
+        } catch (error) {
+            // Fallback to local mute if server fails
+            this.mutedUsers.add(username);
+        }
+        
         this.addSystemMessage(`${username} susturuldu.`);
     }
 
-    banUser(username) {
+    async banUser(username) {
         if (!this.currentUser.isAdmin) return;
-        this.bannedUsers.add(username);
+        
+        try {
+            await this.apiRequest('admin/ban', {
+                method: 'POST',
+                body: JSON.stringify({
+                    adminUser: this.currentUser.name,
+                    targetUser: username
+                })
+            });
+        } catch (error) {
+            // Fallback to local ban if server fails
+            this.bannedUsers.add(username);
+        }
+        
         this.addSystemMessage(`${username} yasaklandı.`);
     }
 
