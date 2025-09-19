@@ -24,7 +24,7 @@
 }
 
 #vx-chat-panel {
-    display: flex; /* Değişiklik */
+    display: flex;
     position: fixed !important;
     bottom: 20px !important;
     right: 100px !important;
@@ -112,6 +112,13 @@
 #vx-close-btn:hover {
     background: #f04747;
     color: #ffffff;
+}
+
+.vx-main-content {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    background: #36393f;
 }
 
 .vx-messages-area {
@@ -411,4 +418,96 @@
 
 .hidden {
     display: none !important;
+}
+
+/* New styles for user list */
+.vx-users-sidebar {
+    width: 200px;
+    background: #2f3136;
+    border-left: 1px solid #40444b;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+}
+
+.vx-sidebar-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    color: #ffffff;
+    margin-bottom: 10px;
+}
+
+.vx-user-count-badge {
+    background: #43b581;
+    color: white;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 12px;
+    font-weight: 600;
+}
+
+.vx-users-list {
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #202225 #2f3136;
+}
+
+.vx-users-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.vx-users-list::-webkit-scrollbar-track {
+    background: #2f3136;
+}
+
+.vx-users-list::-webkit-scrollbar-thumb {
+    background: #202225;
+    border-radius: 4px;
+}
+
+.vx-users-list::-webkit-scrollbar-thumb:hover {
+    background: #1a1d20;
+}
+
+.vx-user-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-radius: 4px;
+    transition: background 0.2s ease;
+    cursor: pointer;
+}
+
+.vx-user-item:hover {
+    background: rgba(79, 84, 92, 0.16);
+}
+
+.vx-user-item .vx-avatar {
+    width: 32px;
+    height: 32px;
+}
+
+.vx-user-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #dcddde;
+}
+
+.vx-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #43b581;
+    box-shadow: 0 0 6px #43b581;
+}
+
+.vx-main-content {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
 }
