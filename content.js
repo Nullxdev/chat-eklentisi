@@ -1,16 +1,4 @@
-async muteUser(username) {
-        if (!this.currentUser.isAdmin) return;
-        
-        try {
-            await this.apiRequest('admin/mute', {
-                method: 'POST',
-                body: JSON.stringify({
-                    adminUser: this.currentUser.name,
-                    targetUser: username
-                })
-            });
-        } catch (error) {
-            console.log('Server error, using local mute');class VenoxChat {
+class VenoxChat {
     constructor() {
         this.apiUrl = "https://chat-eklentisi.onrender.com";
         this.currentUser = { name: 'Misafir' + Math.floor(Math.random() * 1000), avatar: null, isAdmin: false };
