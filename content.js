@@ -1,13 +1,14 @@
 class VenoxChat {
     constructor() {
         this.apiUrl = "https://chat-eklentisi.onrender.com";
-        this.currentUser = { name: 'Misafir' + Math.floor(Math.random() * 1000), avatar: null, isAdmin: false };
+        this.currentUser = { name: 'Misafir' + Math.floor(Math.random() * 1000), avatar: null, isAdmin: false, isGuest: true };
         this.messages = [];
         this.activeUsers = 1;
         this.mutedUsers = new Set();
         this.bannedUsers = new Set();
         this.cooldownTimer = null;
         this.pollingInterval = null;
+        this.unreadMessages = 0;
         this.init();
     }
 
@@ -43,7 +44,7 @@ class VenoxChat {
             
             <div class="vx-main-content">
                 <div class="vx-messages-area" id="vxMessagesArea">
-                    <div class="vx-system-message">
+                    <div class="vx-system-message" id="vxWelcomeMessage">
                         🐍 VenoX Chat'e hoş geldiniz!
                     </div>
                 </div>
@@ -79,13 +80,16 @@ class VenoxChat {
 
     extractUserInfo() {
         try {
-            const userLink = document.querySelector('.p-navgroup-link .p-navgroup-linkText');
-            const avatarImg = document.querySelector('.p-navgroup-link .avatar img');
-            
+            const userLink = document.querySelector('.p-navgroup-link--user');
             if (userLink) {
-                this.currentUser.name = userLink.textContent.trim();
+                this.currentUser.isGuest = false;
+                const usernameElement = userLink.querySelector('.p-navgroup-linkText');
+                if (usernameElement) {
+                    this.currentUser.name = usernameElement.textContent.trim();
+                }
                 this.currentUser.isAdmin = this.currentUser.name === 'VenoX';
                 
+                const avatarImg = userLink.querySelector('.avatar img');
                 if (avatarImg && avatarImg.src) {
                     let avatarSrc = avatarImg.src;
                     if (avatarSrc.startsWith('/')) {
@@ -93,9 +97,16 @@ class VenoxChat {
                     }
                     this.currentUser.avatar = avatarSrc;
                 }
+            } else {
+                this.currentUser.isGuest = true;
+                this.currentUser.name = 'Misafir';
+                document.getElementById('vxMessageInput').placeholder = 'Mesaj göndermek için üye olunuz.';
+                document.getElementById('vxMessageInput').disabled = true;
+                document.getElementById('vxSendBtn').disabled = true;
             }
         } catch (e) {
-            console.log('Kullanıcı bilgileri çıkarılamadı, varsayılan kullanılıyor');
+            console.log('Kullanıcı bilgileri çıkarılamadı, varsayılan misafir kullanılıyor');
+            this.currentUser.isGuest = true;
         }
     }
 
@@ -128,9 +139,33 @@ class VenoxChat {
             toggleBtn.style.right = '630px'; 
             this.scrollToBottom();
             this.fetchUsers();
+            this.clearUnreadCount();
         }
         
         this.saveState();
+    }
+
+    clearUnreadCount() {
+        this.unreadMessages = 0;
+        const toggleBtn = document.getElementById('vx-chat-toggle-btn');
+        let badge = toggleBtn.querySelector('.vx-new-message-badge');
+        if (badge) {
+            badge.remove();
+        }
+    }
+
+    updateUnreadCount() {
+        if (this.isMinimized) {
+            this.unreadMessages++;
+            const toggleBtn = document.getElementById('vx-chat-toggle-btn');
+            let badge = toggleBtn.querySelector('.vx-new-message-badge');
+            if (!badge) {
+                badge = document.createElement('div');
+                badge.className = 'vx-new-message-badge';
+                toggleBtn.appendChild(badge);
+            }
+            badge.textContent = this.unreadMessages > 99 ? '99+' : this.unreadMessages;
+        }
     }
 
     async apiRequest(endpoint, options = {}) {
@@ -161,7 +196,7 @@ class VenoxChat {
         const sendBtn = document.getElementById('vxSendBtn');
         const message = input.value.trim();
         
-        if (!message || sendBtn.disabled) return;
+        if (!message || sendBtn.disabled || this.currentUser.isGuest) return;
         
         if (this.bannedUsers.has(this.currentUser.name)) {
             this.showNotification('Yasaklı kullanıcısınız, mesaj gönderemezsiniz.', 'error');
@@ -211,7 +246,8 @@ class VenoxChat {
         }
         
         const deleteButton = this.currentUser.isAdmin ? `<button class="vx-delete-btn" data-message-id="${messageId}">🗑️</button>` : '';
-        
+        const replyButton = `<button class="vx-reply-btn" data-username="${username}" data-message-text="${this.escapeHtml(message)}">Yanıtla</button>`;
+
         const adminActions = this.currentUser.isAdmin && !isCurrentUser ? `
             <div class="vx-user-actions">
                 <button class="vx-action-btn mute-btn" data-username="${username}">Sustur (5dk)</button>
@@ -221,6 +257,13 @@ class VenoxChat {
             </div>
         ` : '';
 
+        const messageMeta = `
+            <div class="vx-message-meta">
+                ${replyButton}
+                ${deleteButton}
+            </div>
+        `;
+
         messageDiv.innerHTML = `
             <img src="${avatarSrc}" alt="${username}" class="vx-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=3498db&color=ffffff&size=32'">
             <div class="vx-message-content">
@@ -228,27 +271,38 @@ class VenoxChat {
                     ${username}
                     ${isUserAdmin ? '<span class="vx-admin-badge">Admin</span>' : ''}
                     ${adminActions}
-                    ${deleteButton}
                 </div>
                 <div class="vx-message-text">${this.escapeHtml(message)}</div>
                 ${this.isVideoLink(message) ? this.createVideoPreview(message) : ''}
             </div>
+            ${messageMeta}
         `;
         
         messagesArea.appendChild(messageDiv);
         this.scrollToBottom();
 
-        // Olay dinleyicilerini dinamik olarak ekle
+        this.addMessageListeners(messageDiv, messageId);
+
+        while (messagesArea.children.length > 100) {
+            messagesArea.removeChild(messagesArea.firstChild);
+        }
+    }
+
+    addMessageListeners(messageDiv, messageId) {
+        messageDiv.querySelector('.vx-reply-btn')?.addEventListener('click', (e) => {
+            const username = e.target.dataset.username;
+            const text = e.target.dataset.messageText;
+            const input = document.getElementById('vxMessageInput');
+            input.value = `@${username} ${text} `;
+            input.focus();
+        });
+
         if (this.currentUser.isAdmin) {
             messageDiv.querySelector('.mute-btn')?.addEventListener('click', (e) => this.muteUser(e.target.dataset.username));
             messageDiv.querySelector('.ban-btn')?.addEventListener('click', (e) => this.banUser(e.target.dataset.username));
             messageDiv.querySelector('.unmute-btn')?.addEventListener('click', (e) => this.unmuteUser(e.target.dataset.username));
             messageDiv.querySelector('.unban-btn')?.addEventListener('click', (e) => this.unbanUser(e.target.dataset.username));
-            messageDiv.querySelector('.vx-delete-btn')?.addEventListener('click', (e) => this.deleteMessage(e.target.dataset.messageId, messageDiv));
-        }
-
-        while (messagesArea.children.length > 100) {
-            messagesArea.removeChild(messagesArea.firstChild);
+            messageDiv.querySelector('.vx-delete-btn')?.addEventListener('click', () => this.deleteMessage(messageId, messageDiv));
         }
     }
 
@@ -519,12 +573,18 @@ class VenoxChat {
             .filter(el => el.dataset.messageId)
             .map(el => el.dataset.messageId));
 
+        let newMessages = false;
         serverMessages.forEach(msg => {
             if (!currentMessageIds.has(msg.id.toString())) {
                 this.messages.push(msg);
                 this.addServerMessage(msg);
+                newMessages = true;
             }
         });
+
+        if (newMessages) {
+            this.updateUnreadCount();
+        }
     }
 
     addServerMessage(messageData) {
@@ -538,6 +598,7 @@ class VenoxChat {
             `https://ui-avatars.com/api/?name=${encodeURIComponent(messageData.username)}&background=3498db&color=ffffff&size=32`;
         
         const deleteButton = this.currentUser.isAdmin ? `<button class="vx-delete-btn" data-message-id="${messageData.id}">🗑️</button>` : '';
+        const replyButton = `<button class="vx-reply-btn" data-username="${messageData.username}" data-message-text="${this.escapeHtml(messageData.message)}">Yanıtla</button>`;
 
         const adminActions = this.currentUser.isAdmin && messageData.username !== this.currentUser.name ? `
             <div class="vx-user-actions">
@@ -548,6 +609,13 @@ class VenoxChat {
             </div>
         ` : '';
 
+        const messageMeta = `
+            <div class="vx-message-meta">
+                ${replyButton}
+                ${deleteButton}
+            </div>
+        `;
+
         messageDiv.innerHTML = `
             <img src="${avatarSrc}" alt="${messageData.username}" class="vx-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(messageData.username)}&background=3498db&color=ffffff&size=32'">
             <div class="vx-message-content">
@@ -555,23 +623,17 @@ class VenoxChat {
                     ${messageData.username}
                     ${isUserAdmin ? '<span class="vx-admin-badge">Admin</span>' : ''}
                     ${adminActions}
-                    ${deleteButton}
                 </div>
                 <div class="vx-message-text">${this.escapeHtml(messageData.message)}</div>
                 ${this.isVideoLink(messageData.message) ? this.createVideoPreview(messageData.message) : ''}
             </div>
+            ${messageMeta}
         `;
         
         messagesArea.appendChild(messageDiv);
         this.scrollToBottom();
         
-        if (this.currentUser.isAdmin) {
-            messageDiv.querySelector('.mute-btn')?.addEventListener('click', (e) => this.muteUser(e.target.dataset.username));
-            messageDiv.querySelector('.ban-btn')?.addEventListener('click', (e) => this.banUser(e.target.dataset.username));
-            messageDiv.querySelector('.unmute-btn')?.addEventListener('click', (e) => this.unmuteUser(e.target.dataset.username));
-            messageDiv.querySelector('.unban-btn')?.addEventListener('click', (e) => this.unbanUser(e.target.dataset.username));
-            messageDiv.querySelector('.vx-delete-btn')?.addEventListener('click', (e) => this.deleteMessage(e.target.dataset.messageId, messageDiv));
-        }
+        this.addMessageListeners(messageDiv, messageData.id);
 
         while (messagesArea.children.length > 100) {
             if (messagesArea.firstChild.dataset && messagesArea.firstChild.dataset.messageId) {
@@ -645,7 +707,6 @@ class VenoxChat {
     }
 }
 
-// Initialize chat when DOM is ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
         window.venoxChat = new VenoxChat();
