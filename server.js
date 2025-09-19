@@ -192,6 +192,7 @@ app.get('/stats', (req, res) => {
         stats: {
             totalMessages: messages.length,
             activeUsers: activeUsers.size,
+            activeUsersList: Array.from(activeUsers),
             bannedUsers: bannedUsers.size,
             mutedUsers: mutedUsers.size,
             uptime: process.uptime(),
