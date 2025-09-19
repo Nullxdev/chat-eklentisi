@@ -257,7 +257,7 @@ class VenoxChat {
         const replyButton = `<button class="vx-reply-btn" data-username="${username}" data-message-text="${this.escapeHtml(message)}">Yanıtla</button>`;
 
         const adminActions = this.currentUser.isAdmin && !isCurrentUser ? `
-            <div class="vx-user-actions hidden" data-username="${username}">
+            <div class="vx-user-actions" data-username="${username}">
                 <button class="vx-action-btn mute-btn" data-username="${username}">Sustur (5dk)</button>
                 <button class="vx-action-btn ban-btn" data-username="${username}">Yasakla</button>
                 <button class="vx-action-btn unmute-btn" data-username="${username}">Susturmayı Kaldır</button>
@@ -311,7 +311,7 @@ class VenoxChat {
                 usernameDiv.addEventListener('click', () => {
                     const actionsDiv = messageDiv.querySelector('.vx-user-actions');
                     if (actionsDiv) {
-                        actionsDiv.classList.toggle('hidden');
+                        actionsDiv.classList.toggle('visible');
                     }
                 });
             }
@@ -619,7 +619,7 @@ class VenoxChat {
         const replyButton = `<button class="vx-reply-btn" data-username="${messageData.username}" data-message-text="${this.escapeHtml(messageData.message)}">Yanıtla</button>`;
 
         const adminActions = this.currentUser.isAdmin && messageData.username !== this.currentUser.name ? `
-            <div class="vx-user-actions hidden" data-username="${messageData.username}">
+            <div class="vx-user-actions" data-username="${messageData.username}">
                 <button class="vx-action-btn mute-btn" data-username="${messageData.username}">Sustur (5dk)</button>
                 <button class="vx-action-btn ban-btn" data-username="${messageData.username}">Yasakla</button>
                 <button class="vx-action-btn unmute-btn" data-username="${messageData.username}">Susturmayı Kaldır</button>
