@@ -1,4 +1,16 @@
-class VenoxChat {
+async muteUser(username) {
+        if (!this.currentUser.isAdmin) return;
+        
+        try {
+            await this.apiRequest('admin/mute', {
+                method: 'POST',
+                body: JSON.stringify({
+                    adminUser: this.currentUser.name,
+                    targetUser: username
+                })
+            });
+        } catch (error) {
+            console.log('Server error, using local mute');class VenoxChat {
     constructor() {
         this.apiUrl = "https://chat-eklentisi.onrender.com";
         this.currentUser = { name: 'Misafir' + Math.floor(Math.random() * 1000), avatar: null, isAdmin: false };
@@ -8,7 +20,12 @@ class VenoxChat {
         this.bannedUsers = new Set();
         this.cooldownTimer = null;
         this.pollingInterval = null;
-        this.isMinimized = true;
+        this.activeUsersList = new Set([this.currentUser.name]);
+        this.onlineUsers = [
+            { name: this.currentUser.name, status: 'online', avatar: this.currentUser.avatar },
+            { name: 'gokaysevinc', status: 'online', avatar: 'https://cheatglobal.com/data/avatars/s/315/315079.jpg' },
+            { name: 'V4S', status: 'online', avatar: 'https://ui-avatars.com/api/?name=V4S&background=27ae60&color=ffffff&size=32' },
+        ];
         this.init();
     }
 
@@ -44,9 +61,20 @@ class VenoxChat {
                 <button id="vx-close-btn">×</button>
             </div>
             
-            <div class="vx-messages-area" id="vxMessagesArea">
-                <div class="vx-system-message">
-                    🐍 VenoX Chat'e hoş geldiniz!
+            <div class="vx-main-content">
+                <div class="vx-messages-area" id="vxMessagesArea">
+                    <div class="vx-system-message">
+                        🐍 VenoX Chat'e hoş geldiniz!
+                    </div>
+                </div>
+                
+                <div class="vx-users-sidebar" id="vxUsersSidebar">
+                    <div class="vx-sidebar-header">
+                        <span class="vx-users-icon">👥</span>
+                        <span>Aktif Kullanıcılar</span>
+                        <span class="vx-user-count-badge" id="vxUserCountBadge">1</span>
+                    </div>
+                    <div class="vx-users-list" id="vxUsersList"></div>
                 </div>
             </div>
             
@@ -189,9 +217,11 @@ class VenoxChat {
     addLocalMessage(username, message, isCurrentUser = false) {
         const messagesArea = document.getElementById('vxMessagesArea');
         const messageDiv = document.createElement('div');
+        const messageId = Date.now() + Math.random();
         messageDiv.className = 'vx-message';
+        messageDiv.dataset.messageId = messageId;
         
-        const isUserAdmin = username === 'VenoX' || username === this.currentUser.name && this.currentUser.isAdmin;
+        const isUserAdmin = this.isUserAdmin(username);
         
         let avatarSrc;
         if (isCurrentUser && this.currentUser.avatar) {
@@ -209,18 +239,40 @@ class VenoxChat {
             avatarSrc = avatarMap[username] || `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=3498db&color=ffffff&size=32`;
         }
         
+        // Admin action buttons
+        let adminActions = '';
+        if (this.currentUser.isAdmin && !isCurrentUser) {
+            const actions = [];
+            
+            if (!isUserAdmin) {
+                actions.push(`<button class="vx-action-btn" onclick="venoxChat.muteUser('${username}')">Sustur</button>`);
+                actions.push(`<button class="vx-action-btn" onclick="venoxChat.banUser('${username}')">Yasakla</button>`);
+                
+                // Sadece VenoX yönetici yapabilir
+                if (this.currentUser.name === 'VenoX') {
+                    actions.push(`<button class="vx-action-btn vx-promote-btn" onclick="venoxChat.promoteToAdmin('${username}')">Yönetici Yap</button>`);
+                }
+            }
+            
+            if (actions.length > 0) {
+                adminActions = `<div class="vx-user-actions">${actions.join('')}</div>`;
+            }
+        }
+        
+        // Sadece VenoX mesaj silebilir
+        let deleteButton = '';
+        if (this.currentUser.name === 'VenoX') {
+            deleteButton = `<button class="vx-delete-btn" onclick="venoxChat.deleteMessage(${messageId}, this.closest('.vx-message'))">🗑️</button>`;
+        }
+        
         messageDiv.innerHTML = `
             <img src="${avatarSrc}" alt="${username}" class="vx-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=3498db&color=ffffff&size=32'">
             <div class="vx-message-content">
                 <div class="vx-username">
                     ${username}
                     ${isUserAdmin ? '<span class="vx-admin-badge">Admin</span>' : ''}
-                    ${this.currentUser.isAdmin && !isCurrentUser && !isUserAdmin ? `
-                        <div class="vx-user-actions">
-                            <button class="vx-action-btn" onclick="venoxChat.muteUser('${username}')">Sustur</button>
-                            <button class="vx-action-btn" onclick="venoxChat.banUser('${username}')">Yasakla</button>
-                        </div>
-                    ` : ''}
+                    ${adminActions}
+                    ${deleteButton}
                 </div>
                 <div class="vx-message-text">${this.escapeHtml(message)}</div>
                 ${this.isVideoLink(message) ? this.createVideoPreview(message) : ''}
@@ -293,10 +345,10 @@ class VenoxChat {
                 })
             });
         } catch (error) {
-            // Fallback to local mute if server fails
-            this.mutedUsers.add(username);
+            console.log('Server error, using local mute');
         }
         
+        this.mutedUsers.add(username);
         this.addSystemMessage(`${username} susturuldu.`);
     }
 
@@ -312,11 +364,59 @@ class VenoxChat {
                 })
             });
         } catch (error) {
-            // Fallback to local ban if server fails
-            this.bannedUsers.add(username);
+            console.log('Server error, using local ban');
         }
         
+        this.bannedUsers.add(username);
         this.addSystemMessage(`${username} yasaklandı.`);
+    }
+
+    deleteMessage(messageId, messageElement) {
+        if (this.currentUser.name !== 'VenoX') return;
+        
+        // Remove message from DOM
+        if (messageElement && messageElement.parentNode) {
+            messageElement.remove();
+        }
+        
+        // Try to delete from server
+        this.apiRequest(`messages/${messageId}`, {
+            method: 'DELETE',
+            body: JSON.stringify({
+                adminUser: this.currentUser.name
+            })
+        }).catch(() => {
+            console.log('Could not delete from server');
+        });
+        
+        this.addSystemMessage('Mesaj silindi.');
+    }
+
+    promoteToAdmin(username) {
+        if (this.currentUser.name !== 'VenoX') return;
+        
+        // Add to local admin list
+        if (!this.adminUsers) {
+            this.adminUsers = new Set(['VenoX']);
+        }
+        this.adminUsers.add(username);
+        
+        // Try to promote on server
+        this.apiRequest('admin/promote', {
+            method: 'POST',
+            body: JSON.stringify({
+                adminUser: this.currentUser.name,
+                targetUser: username
+            })
+        }).catch(() => {
+            console.log('Could not promote on server');
+        });
+        
+        this.addSystemMessage(`${username} yönetici yapıldı.`);
+    }
+
+    isUserAdmin(username) {
+        return username === 'VenoX' || (this.adminUsers && this.adminUsers.has(username));
     }
 
     addSystemMessage(message) {
