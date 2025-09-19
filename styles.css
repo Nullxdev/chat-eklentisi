@@ -24,7 +24,7 @@
 }
 
 #vx-chat-panel {
-    display: none;
+    display: flex; /* Değişiklik */
     position: fixed !important;
     bottom: 20px !important;
     right: 100px !important;
