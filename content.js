@@ -1,6 +1,6 @@
 class VenoxChat {
     constructor() {
-        this.apiUrl = "https://chat-server.onrender.com";
+        this.apiUrl = "https://chat-eklentisi.onrender.com";
         this.currentUser = { name: 'Misafir' + Math.floor(Math.random() * 1000), avatar: null, isAdmin: false };
         this.messages = [];
         this.activeUsers = 1;
@@ -281,15 +281,96 @@ class VenoxChat {
     startChatPolling() {
         this.stopChatPolling();
         
-        // Simulate activity with random messages
+        // Fetch messages from server
         this.pollingInterval = setInterval(() => {
+            this.fetchMessages();
+        }, 3000); // Her 3 saniyede mesajları çek
+
+        // Fallback to simulation if server fails
+        setTimeout(() => {
             this.simulateActivity();
-        }, Math.random() * 15000 + 10000); // 10-25 seconds
+        }, Math.random() * 15000 + 10000);
 
         // Update active users count
         setInterval(() => {
             this.updateActiveUsers();
         }, 30000);
+    }
+
+    async fetchMessages() {
+        try {
+            const result = await this.apiRequest('messages');
+            if (result.success && result.messages) {
+                this.updateMessagesFromServer(result.messages);
+                this.activeUsers = result.activeUsers || this.activeUsers;
+                this.updateActiveUsersDisplay();
+            }
+        } catch (error) {
+            // Server'a ulaşılamazsa simülasyon moduna geç
+            console.log('Server offline, using simulation mode');
+        }
+    }
+
+    updateMessagesFromServer(serverMessages) {
+        const messagesArea = document.getElementById('vxMessagesArea');
+        const currentMessageIds = Array.from(messagesArea.children)
+            .filter(el => el.dataset.messageId)
+            .map(el => el.dataset.messageId);
+
+        // Yeni mesajları ekle
+        serverMessages.forEach(msg => {
+            if (!currentMessageIds.includes(msg.id.toString())) {
+                this.addServerMessage(msg);
+            }
+        });
+    }
+
+    addServerMessage(messageData) {
+        const messagesArea = document.getElementById('vxMessagesArea');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'vx-message';
+        messageDiv.dataset.messageId = messageData.id;
+        
+        const isUserAdmin = messageData.isAdmin || messageData.username === 'VenoX';
+        const avatarSrc = messageData.avatar || 
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(messageData.username)}&background=3498db&color=ffffff&size=32`;
+        
+        messageDiv.innerHTML = `
+            <img src="${avatarSrc}" alt="${messageData.username}" class="vx-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(messageData.username)}&background=3498db&color=ffffff&size=32'">
+            <div class="vx-message-content">
+                <div class="vx-username">
+                    ${messageData.username}
+                    ${isUserAdmin ? '<span class="vx-admin-badge">Admin</span>' : ''}
+                    ${this.currentUser.isAdmin && messageData.username !== this.currentUser.name && !isUserAdmin ? `
+                        <div class="vx-user-actions">
+                            <button class="vx-action-btn" onclick="venoxChat.muteUser('${messageData.username}')">Sustur</button>
+                            <button class="vx-action-btn" onclick="venoxChat.banUser('${messageData.username}')">Yasakla</button>
+                        </div>
+                    ` : ''}
+                </div>
+                <div class="vx-message-text">${this.escapeHtml(messageData.message)}</div>
+                ${this.isVideoLink(messageData.message) ? this.createVideoPreview(messageData.message) : ''}
+            </div>
+        `;
+        
+        messagesArea.appendChild(messageDiv);
+        this.scrollToBottom();
+        
+        // Limit messages to prevent memory issues
+        while (messagesArea.children.length > 100) {
+            if (messagesArea.firstChild.dataset && messagesArea.firstChild.dataset.messageId) {
+                messagesArea.removeChild(messagesArea.firstChild);
+            } else {
+                break;
+            }
+        }
+    }
+
+    updateActiveUsersDisplay() {
+        const countElement = document.querySelector('.vx-active-users-count');
+        if (countElement) {
+            countElement.textContent = this.activeUsers;
+        }
     }
 
     stopChatPolling() {
