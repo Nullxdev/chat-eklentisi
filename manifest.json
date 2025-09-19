@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "CheatGlobal VenoX Chat",
+  "version": "1.0.0",
+  "description": "CheatGlobal.com için gerçek zamanlı chat sistemi",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": [
+    "https://cheatglobal.com/*",
+    "https://chat-server.onrender.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://cheatglobal.com/*"],
+      "js": ["content.js"],
+      "css": ["styles.css"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "VenoX Chat"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
