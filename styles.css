@@ -194,7 +194,7 @@
     align-items: center;
     gap: 6px;
     line-height: 1.375;
-    cursor: pointer; /* Kullanıcı adına tıklanabilir olması için */
+    cursor: pointer;
 }
 
 .vx-admin-badge {
@@ -219,8 +219,8 @@
 .vx-user-actions {
     display: none;
     position: absolute;
-    top: 100%; /* Mesajın altına konumlandır */
-    left: 16px; /* Avatarın yanından başla */
+    top: 100%;
+    left: 16px;
     background: #18191c;
     border: 1px solid #3f4147;
     border-radius: 8px;
