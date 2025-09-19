@@ -1,11 +1,19 @@
 {
-  "name": "cheatglobal-venox-chat",
+  "name": "venox-chat-server",
   "version": "1.0.0",
-  "description": "CheatGlobal.com için gerçek zamanlı chat sistemi",
-  "main": "content.js",
+  "description": "VenoX Chat Server for CheatGlobal.com",
+  "main": "server.js",
   "scripts": {
-    "build": "echo 'Chrome Extension için build işlemi gerekli değil'",
-    "dev": "echo 'Chrome Extension geliştirme modu için developer mode kullanın'"
+    "start": "node server.js",
+    "dev": "node server.js"
   },
-  "keywords": [
-    "chrome
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "author": "VenoX",
+  "license": "ISC"
+}
