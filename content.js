@@ -8,7 +8,6 @@ class VenoxChat {
         this.bannedUsers = new Set();
         this.cooldownTimer = null;
         this.pollingInterval = null;
-        this.activeUsersList = new Set();
         this.init();
     }
 
@@ -170,9 +169,14 @@ class VenoxChat {
             this.showNotification('Yasaklı kullanıcısınız, mesaj gönderemezsiniz.', 'error');
             return;
         }
+        
+        if (this.mutedUsers.has(this.currentUser.name)) {
+            this.showNotification('Susturulmuş kullanıcısınız, mesaj gönderemezsiniz.', 'error');
+            return;
+        }
 
         try {
-            await this.apiRequest('messages', {
+            const res = await this.apiRequest('messages', {
                 method: 'POST',
                 body: JSON.stringify({
                     username: this.currentUser.name,
@@ -213,12 +217,10 @@ class VenoxChat {
             const actions = [];
             
             if (!isUserAdmin) {
-                actions.push(`<button class="vx-action-btn" onclick="venoxChat.muteUser('${username}')">Sustur</button>`);
+                actions.push(`<button class="vx-action-btn" onclick="venoxChat.muteUser('${username}')">Sustur (5dk)</button>`);
                 actions.push(`<button class="vx-action-btn" onclick="venoxChat.banUser('${username}')">Yasakla</button>`);
-                
-                if (this.currentUser.name === 'VenoX') {
-                    actions.push(`<button class="vx-action-btn vx-promote-btn" onclick="venoxChat.promoteToAdmin('${username}')">Yönetici Yap</button>`);
-                }
+                actions.push(`<button class="vx-action-btn" onclick="venoxChat.unmuteUser('${username}')">Susturmayı Kaldır</button>`);
+                actions.push(`<button class="vx-action-btn" onclick="venoxChat.unbanUser('${username}')">Yasağı Kaldır</button>`);
             }
             
             if (actions.length > 0) {
@@ -227,7 +229,7 @@ class VenoxChat {
         }
         
         let deleteButton = '';
-        if (this.currentUser.name === 'VenoX') {
+        if (this.currentUser.isAdmin) {
             deleteButton = `<button class="vx-delete-btn" onclick="venoxChat.deleteMessage(${messageId}, this.closest('.vx-message'))">🗑️</button>`;
         }
         
@@ -315,19 +317,43 @@ class VenoxChat {
         if (!this.currentUser.isAdmin) return;
         
         try {
+            const duration = 5 * 60 * 1000; // 5 dakika
             await this.apiRequest('admin/mute', {
+                method: 'POST',
+                body: JSON.stringify({
+                    adminUser: this.currentUser.name,
+                    targetUser: username,
+                    duration: duration
+                })
+            });
+            this.mutedUsers.add(username);
+            this.addSystemMessage(`${username} 5 dakika boyunca susturuldu.`);
+        } catch (error) {
+            console.error('Server error, using local mute:', error);
+            this.mutedUsers.add(username);
+            this.addSystemMessage(`${username} susturuldu (yerel).`);
+            setTimeout(() => this.mutedUsers.delete(username), 5 * 60 * 1000);
+        }
+    }
+    
+    async unmuteUser(username) {
+        if (!this.currentUser.isAdmin) return;
+        
+        try {
+            await this.apiRequest('admin/unmute', {
                 method: 'POST',
                 body: JSON.stringify({
                     adminUser: this.currentUser.name,
                     targetUser: username
                 })
             });
+            this.mutedUsers.delete(username);
+            this.addSystemMessage(`${username} susturması kaldırıldı.`);
         } catch (error) {
-            console.log('Server error, using local mute');
+            console.error('Server error, using local unmute:', error);
+            this.mutedUsers.delete(username);
+            this.addSystemMessage(`${username} susturması kaldırıldı (yerel).`);
         }
-        
-        this.mutedUsers.add(username);
-        this.addSystemMessage(`${username} susturuldu.`);
     }
 
     async banUser(username) {
@@ -341,56 +367,58 @@ class VenoxChat {
                     targetUser: username
                 })
             });
+            this.bannedUsers.add(username);
+            this.addSystemMessage(`${username} yasaklandı.`);
         } catch (error) {
-            console.log('Server error, using local ban');
+            console.error('Server error, using local ban:', error);
+            this.bannedUsers.add(username);
+            this.addSystemMessage(`${username} yasaklandı (yerel).`);
         }
+    }
+    
+    async unbanUser(username) {
+        if (!this.currentUser.isAdmin) return;
         
-        this.bannedUsers.add(username);
-        this.addSystemMessage(`${username} yasaklandı.`);
+        try {
+            await this.apiRequest('admin/unban', {
+                method: 'POST',
+                body: JSON.stringify({
+                    adminUser: this.currentUser.name,
+                    targetUser: username
+                })
+            });
+            this.bannedUsers.delete(username);
+            this.addSystemMessage(`${username} yasağı kaldırıldı.`);
+        } catch (error) {
+            console.error('Server error, using local unban:', error);
+            this.bannedUsers.delete(username);
+            this.addSystemMessage(`${username} yasağı kaldırıldı (yerel).`);
+        }
     }
 
-    deleteMessage(messageId, messageElement) {
-        if (this.currentUser.name !== 'VenoX') return;
+    async deleteMessage(messageId, messageElement) {
+        if (!this.currentUser.isAdmin) return;
         
         if (messageElement && messageElement.parentNode) {
             messageElement.remove();
         }
         
-        this.apiRequest(`messages/${messageId}`, {
-            method: 'DELETE',
-            body: JSON.stringify({
-                adminUser: this.currentUser.name
-            })
-        }).catch(() => {
-            console.log('Could not delete from server');
-        });
+        try {
+            await this.apiRequest(`messages/${messageId}`, {
+                method: 'DELETE',
+                body: JSON.stringify({
+                    adminUser: this.currentUser.name
+                })
+            });
+        } catch (error) {
+            console.error('Could not delete from server:', error);
+        }
         
         this.addSystemMessage('Mesaj silindi.');
     }
 
-    promoteToAdmin(username) {
-        if (this.currentUser.name !== 'VenoX') return;
-        
-        if (!this.adminUsers) {
-            this.adminUsers = new Set(['VenoX']);
-        }
-        this.adminUsers.add(username);
-        
-        this.apiRequest('admin/promote', {
-            method: 'POST',
-            body: JSON.stringify({
-                adminUser: this.currentUser.name,
-                targetUser: username
-            })
-        }).catch(() => {
-            console.log('Could not promote on server');
-        });
-        
-        this.addSystemMessage(`${username} yönetici yapıldı.`);
-    }
-
     isUserAdmin(username) {
-        return username === 'VenoX' || (this.adminUsers && this.adminUsers.has(username));
+        return username === 'VenoX';
     }
 
     addSystemMessage(message) {
@@ -420,8 +448,7 @@ class VenoxChat {
             }
             this.fetchUsers();
         } catch (error) {
-            console.log('Server offline, using simulation mode');
-            // Simülasyon moduna geçişi burada yönetebiliriz
+            console.error('Server offline, using simulation mode:', error);
         }
     }
 
@@ -429,18 +456,17 @@ class VenoxChat {
         try {
             const result = await this.apiRequest('stats');
             if (result.success && result.stats && result.stats.activeUsersList) {
-                // Her aktif kullanıcı için avatarı ve diğer bilgileri almak üzere mesajlar listesini kullan
                 const usersWithAvatars = result.stats.activeUsersList.map(username => {
                     const foundMessage = this.messages.find(msg => msg.username === username && msg.avatar);
                     return {
                         username: username,
-                        avatar: foundMessage ? foundMessage.avatar : null // Mesajlardan avatarı al
+                        avatar: foundMessage ? foundMessage.avatar : this.getUserAvatar(username)
                     };
                 });
                 this.updateUsersList(usersWithAvatars);
             }
         } catch (error) {
-            console.log('Kullanıcı listesi alınamadı, kendi kullanıcısı gösteriliyor.');
+            console.error('Kullanıcı listesi alınamadı, kendi kullanıcısı gösteriliyor.');
             this.updateUsersList([{ username: this.currentUser.name, avatar: this.currentUser.avatar }]);
         }
     }
@@ -449,11 +475,17 @@ class VenoxChat {
         const usersListElement = document.getElementById('vxUsersList');
         if (!usersListElement) return;
         
+        // VenoX kullanıcısını her zaman listeye ekle
+        let venoxExists = users.some(u => u.username === 'VenoX');
+        if (!venoxExists && this.currentUser.name === 'VenoX') {
+            users.push({ username: 'VenoX', avatar: this.currentUser.avatar });
+        }
+        
         usersListElement.innerHTML = '';
         
         users.forEach(user => {
             const username = user.username;
-            const avatar = user.avatar || this.getUserAvatar(username); // Varsayılan avatarı kullan
+            const avatar = user.avatar || this.getUserAvatar(username);
 
             const userItem = document.createElement('div');
             userItem.className = 'vx-user-item';
@@ -477,7 +509,6 @@ class VenoxChat {
             return this.currentUser.avatar;
         }
         
-        // Sunucu tarafından avatar bilgisi gelirse o kullanılacak
         const userMessage = this.messages.find(msg => msg.username === username && msg.avatar);
         if (userMessage) {
             return userMessage.avatar;
@@ -494,7 +525,7 @@ class VenoxChat {
 
         serverMessages.forEach(msg => {
             if (!currentMessageIds.has(msg.id.toString())) {
-                this.messages.push(msg); // Mesajları yerel listeye ekle
+                this.messages.push(msg);
                 this.addServerMessage(msg);
             }
         });
@@ -510,18 +541,31 @@ class VenoxChat {
         const avatarSrc = messageData.avatar || 
             `https://ui-avatars.com/api/?name=${encodeURIComponent(messageData.username)}&background=3498db&color=ffffff&size=32`;
         
+        let adminActions = '';
+        if (this.currentUser.isAdmin && messageData.username !== this.currentUser.name) {
+             adminActions = `
+                <div class="vx-user-actions">
+                    <button class="vx-action-btn" onclick="venoxChat.muteUser('${messageData.username}')">Sustur (5dk)</button>
+                    <button class="vx-action-btn" onclick="venoxChat.banUser('${messageData.username}')">Yasakla</button>
+                    <button class="vx-action-btn" onclick="venoxChat.unmuteUser('${messageData.username}')">Susturmayı Kaldır</button>
+                    <button class="vx-action-btn" onclick="venoxChat.unbanUser('${messageData.username}')">Yasağı Kaldır</button>
+                </div>
+            `;
+        }
+
+        let deleteButton = '';
+        if (this.currentUser.isAdmin) {
+             deleteButton = `<button class="vx-delete-btn" onclick="venoxChat.deleteMessage(${messageData.id}, this.closest('.vx-message'))">🗑️</button>`;
+        }
+
         messageDiv.innerHTML = `
             <img src="${avatarSrc}" alt="${messageData.username}" class="vx-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(messageData.username)}&background=3498db&color=ffffff&size=32'">
             <div class="vx-message-content">
                 <div class="vx-username">
                     ${messageData.username}
                     ${isUserAdmin ? '<span class="vx-admin-badge">Admin</span>' : ''}
-                    ${this.currentUser.isAdmin && messageData.username !== this.currentUser.name && !isUserAdmin ? `
-                        <div class="vx-user-actions">
-                            <button class="vx-action-btn" onclick="venoxChat.muteUser('${messageData.username}')">Sustur</button>
-                            <button class="vx-action-btn" onclick="venoxChat.banUser('${messageData.username}')">Yasakla</button>
-                        </div>
-                    ` : ''}
+                    ${adminActions}
+                    ${deleteButton}
                 </div>
                 <div class="vx-message-text">${this.escapeHtml(messageData.message)}</div>
                 ${this.isVideoLink(messageData.message) ? this.createVideoPreview(messageData.message) : ''}
