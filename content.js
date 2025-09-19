@@ -78,15 +78,13 @@ class VenoxChat {
         `;
         document.body.appendChild(panel);
         
-        // Toplu silme barı ekle
         if (this.currentUser.isAdmin) {
             const bulkDeleteBar = document.createElement('div');
             bulkDeleteBar.id = 'vxBulkDeleteBar';
             bulkDeleteBar.className = 'vx-bulk-delete-bar';
             bulkDeleteBar.innerHTML = 'Seçilen mesajları sil (0)';
-            bulkDeleteBar.style.display = 'none'; // Başlangıçta gizli
-            document.getElementById('vxMessagesArea').prepend(bulkDeleteBar);
             bulkDeleteBar.addEventListener('click', () => this.bulkDeleteMessages());
+            document.getElementById('vxMessagesArea').prepend(bulkDeleteBar);
         }
     }
 
@@ -283,7 +281,7 @@ class VenoxChat {
                 ${deleteButton}
             </div>
         `;
-        
+
         const selector = this.currentUser.isAdmin ? `<div class="vx-message-selector" data-message-id="${messageId}"></div>` : '';
 
         messageDiv.innerHTML = `
@@ -357,7 +355,8 @@ class VenoxChat {
         const bar = document.getElementById('vxBulkDeleteBar');
         if (this.selectedMessages.size > 0) {
             bar.style.display = 'flex';
-            bar.textContent = `Seçilen mesajları sil (${this.selectedMessages.size})`;
+            bar.innerHTML = `<button class="vx-bulk-delete-btn">Seçilen ${this.selectedMessages.size} mesajı sil</button>`;
+            bar.querySelector('.vx-bulk-delete-btn').addEventListener('click', () => this.bulkDeleteMessages());
         } else {
             bar.style.display = 'none';
         }
@@ -457,6 +456,7 @@ class VenoxChat {
                 })
             });
             this.mutedUsers.add(username);
+            this.showNotification(`Kullanıcı susturuldu: ${username}`, 'info');
             this.addSystemMessage(res.message);
         } catch (error) {
             console.error('Server error, using local mute:', error);
@@ -478,6 +478,7 @@ class VenoxChat {
                 })
             });
             this.mutedUsers.delete(username);
+            this.showNotification(`Kullanıcı susturması kaldırıldı: ${username}`, 'info');
             this.addSystemMessage(res.message);
         } catch (error) {
             console.error('Server error, using local unmute:', error);
@@ -498,6 +499,7 @@ class VenoxChat {
                 })
             });
             this.bannedUsers.add(username);
+            this.showNotification(`Kullanıcı yasaklandı: ${username}`, 'info');
             this.addSystemMessage(res.message);
         } catch (error) {
             console.error('Server error, using local ban:', error);
@@ -518,6 +520,7 @@ class VenoxChat {
                 })
             });
             this.bannedUsers.delete(username);
+            this.showNotification(`Kullanıcı yasağı kaldırıldı: ${username}`, 'info');
             this.addSystemMessage(res.message);
         } catch (error) {
             console.error('Server error, using local unban:', error);
@@ -651,7 +654,6 @@ class VenoxChat {
 
         const serverMessageIds = new Set(serverMessages.map(msg => msg.id.toString()));
 
-        // Sunucuda olmayan mesajları kaldır
         currentMessageElements.forEach(el => {
             if (!serverMessageIds.has(el.dataset.messageId)) {
                 el.remove();
