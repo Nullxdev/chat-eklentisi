@@ -242,6 +242,32 @@
     color: #ffffff;
 }
 
+.vx-promote-btn {
+    background: #43b581 !important;
+    color: #ffffff !important;
+}
+
+.vx-promote-btn:hover {
+    background: #3ca374 !important;
+}
+
+.vx-delete-btn {
+    background: none;
+    border: none;
+    color: #f04747;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 3px;
+    transition: all 0.2s;
+    margin-left: 8px;
+}
+
+.vx-delete-btn:hover {
+    background: rgba(240, 71, 71, 0.1);
+    transform: scale(1.1);
+}
+
 .vx-input-area {
     background: #40444b;
     padding: 24px 16px;
