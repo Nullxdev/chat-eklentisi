@@ -355,42 +355,19 @@
     margin-top: 8px;
     border-radius: 8px;
     overflow: hidden;
-    max-width: 300px;
+    max-width: 100%; /* Video genişliğini ayarla */
     position: relative;
-    cursor: pointer;
     border: 1px solid #40444b;
+    aspect-ratio: 16 / 9; /* 16:9 en boy oranı */
 }
 
-.vx-video-preview img {
+.vx-video-preview iframe {
     width: 100%;
-    height: auto;
+    height: 100%;
     display: block;
+    border: none;
 }
 
-.vx-play-button {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(0, 0, 0, 0.8);
-    color: white;
-    border-radius: 50%;
-    width: 48px;
-    height: 48px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-}
-
-.vx-video-title {
-    text-align: center;
-    padding: 8px;
-    font-size: 12px;
-    color: #b9bbbe;
-    background: #2f3136;
-    font-weight: 500;
-}
 
 .vx-notification {
     position: fixed;
