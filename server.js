@@ -62,25 +62,19 @@ app.post('/messages', (req, res) => {
         if (message.length > 200) {
             return res.status(400).json({ success: false, message: 'Mesaj çok uzun' });
         }
-
-        // Check if user is banned
-        if (bannedUsers.has(username)) {
-            return res.status(403).json({ success: false, message: 'Yasaklı kullanıcı' });
-        }
-
-        // Check if user is muted
-        if (mutedUsers.has(username)) {
-            return res.status(403).json({ success: false, message: 'Susturulmuş kullanıcı' });
+        
+        // Susturulmuş veya yasaklı kullanıcı kontrolü
+        if (bannedUsers.has(username) || mutedUsers.has(username)) {
+            return res.status(403).json({ success: false, message: 'Yasaklı veya susturulmuş kullanıcı' });
         }
 
         const newMessage = {
             id: Date.now() + Math.random(),
             username,
             message: message.trim(),
-            avatar, // Avatar bilgisi de saklanıyor
-            isAdmin: isAdmin || username === 'VenoX',
+            avatar,
+            isAdmin: username === 'VenoX',
             timestamp: new Date().toISOString(),
-            ip: req.ip // Rate limiting için
         };
 
         messages.push(newMessage);
@@ -103,37 +97,41 @@ app.post('/messages', (req, res) => {
     }
 });
 
-// Admin endpoints
-app.post('/admin/ban', (req, res) => {
-    try {
-        const { adminUser, targetUser } = req.body;
-
-        if (adminUser !== 'VenoX') {
-            return res.status(403).json({ success: false, message: 'Yetki yok' });
-        }
-
-        bannedUsers.add(targetUser);
-        activeUsers.delete(targetUser);
-
-        res.json({ 
-            success: true, 
-            message: `${targetUser} yasaklandı` 
-        });
-
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Ban işlemi başarısız' });
+// Delete message
+app.delete('/messages/:id', (req, res) => {
+    const { id } = req.params;
+    const { adminUser } = req.body;
+    
+    if (adminUser !== 'VenoX') {
+        return res.status(403).json({ success: false, message: 'Yetki yok' });
+    }
+    
+    const initialLength = messages.length;
+    messages = messages.filter(msg => msg.id.toString() !== id);
+    
+    if (messages.length < initialLength) {
+        res.json({ success: true, message: 'Mesaj silindi' });
+    } else {
+        res.status(404).json({ success: false, message: 'Mesaj bulunamadı' });
     }
 });
 
+
+// Admin endpoints
 app.post('/admin/mute', (req, res) => {
     try {
-        const { adminUser, targetUser } = req.body;
+        const { adminUser, targetUser, duration } = req.body;
 
         if (adminUser !== 'VenoX') {
             return res.status(403).json({ success: false, message: 'Yetki yok' });
         }
 
         mutedUsers.add(targetUser);
+
+        // Belirli bir süre sonra susturmayı kaldır
+        setTimeout(() => {
+            mutedUsers.delete(targetUser);
+        }, duration);
 
         res.json({ 
             success: true, 
@@ -142,26 +140,6 @@ app.post('/admin/mute', (req, res) => {
 
     } catch (error) {
         res.status(500).json({ success: false, message: 'Mute işlemi başarısız' });
-    }
-});
-
-app.post('/admin/unban', (req, res) => {
-    try {
-        const { adminUser, targetUser } = req.body;
-
-        if (adminUser !== 'VenoX') {
-            return res.status(403).json({ success: false, message: 'Yetki yok' });
-        }
-
-        bannedUsers.delete(targetUser);
-
-        res.json({ 
-            success: true, 
-            message: `${targetUser} yasağı kaldırıldı` 
-        });
-
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Unban işlemi başarısız' });
     }
 });
 
@@ -185,14 +163,59 @@ app.post('/admin/unmute', (req, res) => {
     }
 });
 
+app.post('/admin/ban', (req, res) => {
+    try {
+        const { adminUser, targetUser } = req.body;
+
+        if (adminUser !== 'VenoX') {
+            return res.status(403).json({ success: false, message: 'Yetki yok' });
+        }
+
+        bannedUsers.add(targetUser);
+        activeUsers.delete(targetUser);
+
+        res.json({ 
+            success: true, 
+            message: `${targetUser} yasaklandı` 
+        });
+
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Ban işlemi başarısız' });
+    }
+});
+
+app.post('/admin/unban', (req, res) => {
+    try {
+        const { adminUser, targetUser } = req.body;
+
+        if (adminUser !== 'VenoX') {
+            return res.status(403).json({ success: false, message: 'Yetki yok' });
+        }
+
+        bannedUsers.delete(targetUser);
+
+        res.json({ 
+            success: true, 
+            message: `${targetUser} yasağı kaldırıldı` 
+        });
+
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Unban işlemi başarısız' });
+    }
+});
+
 // Get server stats
 app.get('/stats', (req, res) => {
+    // VenoX kullanıcısını her zaman aktif kullanıcılar listesine ekle
+    const currentActiveUsers = new Set(activeUsers);
+    currentActiveUsers.add('VenoX');
+
     res.json({
         success: true,
         stats: {
             totalMessages: messages.length,
-            activeUsers: activeUsers.size,
-            activeUsersList: Array.from(activeUsers), // Kullanıcı listesini Set'ten Array'e dönüştür
+            activeUsers: currentActiveUsers.size,
+            activeUsersList: Array.from(currentActiveUsers),
             bannedUsers: bannedUsers.size,
             mutedUsers: mutedUsers.size,
             uptime: process.uptime(),
