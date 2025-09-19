@@ -205,7 +205,6 @@ class VenoxChat {
         if (isCurrentUser && this.currentUser.avatar) {
             avatarSrc = this.currentUser.avatar;
         } else {
-            // Varsayılan avatar veya çekilen avatar
             avatarSrc = `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=3498db&color=ffffff&size=32`;
         }
         
@@ -255,26 +254,39 @@ class VenoxChat {
     }
 
     isVideoLink(message) {
-        return message.includes('youtube.com/watch') || message.includes('youtu.be/');
+        return message.includes('youtube.com/watch') || message.includes('youtu.be/') || message.includes('streamable.com/');
     }
 
     createVideoPreview(url) {
-        const videoId = this.extractVideoId(url);
-        if (!videoId) return '';
-        
-        return `
-            <div class="vx-video-preview" onclick="window.open('${url}', '_blank')">
-                <img src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg" alt="Video thumbnail">
-                <div class="vx-play-button">▶</div>
-                <div class="vx-video-title">Video'yu izlemek için tıklayın</div>
-            </div>
-        `;
+        let videoHtml = '';
+        if (url.includes('youtube.com/watch') || url.includes('youtu.be/')) {
+            const videoId = this.extractVideoId(url);
+            if (videoId) {
+                videoHtml = `<iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
+            }
+        } else if (url.includes('streamable.com/')) {
+            const streamableId = this.extractStreamableId(url);
+            if (streamableId) {
+                videoHtml = `<iframe src="https://streamable.com/e/${streamableId}" frameborder="0" allowfullscreen></iframe>`;
+            }
+        }
+
+        if (videoHtml) {
+            return `<div class="vx-video-preview">${videoHtml}</div>`;
+        }
+        return '';
     }
 
     extractVideoId(url) {
         const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
         const match = url.match(regExp);
         return (match && match[7].length === 11) ? match[7] : null;
+    }
+
+    extractStreamableId(url) {
+        const regExp = /(?:streamable\.com\/)(?:e\/)?([a-zA-Z0-9]+)/;
+        const match = url.match(regExp);
+        return (match && match[1]) ? match[1] : null;
     }
 
     startCooldown() {
@@ -417,11 +429,19 @@ class VenoxChat {
         try {
             const result = await this.apiRequest('stats');
             if (result.success && result.stats && result.stats.activeUsersList) {
-                this.updateUsersList(result.stats.activeUsersList);
+                // Her aktif kullanıcı için avatarı ve diğer bilgileri almak üzere mesajlar listesini kullan
+                const usersWithAvatars = result.stats.activeUsersList.map(username => {
+                    const foundMessage = this.messages.find(msg => msg.username === username && msg.avatar);
+                    return {
+                        username: username,
+                        avatar: foundMessage ? foundMessage.avatar : null // Mesajlardan avatarı al
+                    };
+                });
+                this.updateUsersList(usersWithAvatars);
             }
         } catch (error) {
-            console.log('Kullanıcı listesi alınamadı, simülasyon kullanılıyor.');
-            this.updateUsersList([this.currentUser.name]); // Sadece kendi kullanıcısını göster
+            console.log('Kullanıcı listesi alınamadı, kendi kullanıcısı gösteriliyor.');
+            this.updateUsersList([{ username: this.currentUser.name, avatar: this.currentUser.avatar }]);
         }
     }
 
@@ -431,15 +451,15 @@ class VenoxChat {
         
         usersListElement.innerHTML = '';
         
-        users.forEach(username => {
+        users.forEach(user => {
+            const username = user.username;
+            const avatar = user.avatar || this.getUserAvatar(username); // Varsayılan avatarı kullan
+
             const userItem = document.createElement('div');
             userItem.className = 'vx-user-item';
             
-            const userAvatar = this.getUserAvatar(username);
-            const isUserAdmin = this.isUserAdmin(username);
-
             userItem.innerHTML = `
-                <img src="${userAvatar}" alt="${username}" class="vx-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=3498db&color=ffffff&size=32'">
+                <img src="${avatar}" alt="${username}" class="vx-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=3498db&color=ffffff&size=32'">
                 <div class="vx-user-name">${username}</div>
             `;
             
@@ -474,6 +494,7 @@ class VenoxChat {
 
         serverMessages.forEach(msg => {
             if (!currentMessageIds.has(msg.id.toString())) {
+                this.messages.push(msg); // Mesajları yerel listeye ekle
                 this.addServerMessage(msg);
             }
         });
