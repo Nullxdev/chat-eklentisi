@@ -16,13 +16,6 @@ let activeUsers = new Set();
 let bannedUsers = new Set();
 let mutedUsers = new Set();
 
-// Kodu kaldırdım: Artık mesajlar otomatik temizlenmeyecek.
-// setInterval(() => {
-//     if (messages.length > 100) {
-//         messages = messages.slice(-100);
-//     }
-// }, 60000);
-
 app.get('/', (req, res) => {
     res.json({ 
         success: true, 
@@ -38,7 +31,7 @@ app.get('/', (req, res) => {
 
 app.get('/messages', (req, res) => {
     try {
-        const recentMessages = messages; // Tüm mesajları gönder
+        const recentMessages = messages;
         res.json({ 
             success: true, 
             messages: recentMessages,
