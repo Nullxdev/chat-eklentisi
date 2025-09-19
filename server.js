@@ -77,7 +77,7 @@ app.post('/messages', (req, res) => {
             id: Date.now() + Math.random(),
             username,
             message: message.trim(),
-            avatar,
+            avatar, // Avatar bilgisi de saklanıyor
             isAdmin: isAdmin || username === 'VenoX',
             timestamp: new Date().toISOString(),
             ip: req.ip // Rate limiting için
@@ -192,7 +192,7 @@ app.get('/stats', (req, res) => {
         stats: {
             totalMessages: messages.length,
             activeUsers: activeUsers.size,
-            activeUsersList: Array.from(activeUsers),
+            activeUsersList: Array.from(activeUsers), // Kullanıcı listesini Set'ten Array'e dönüştür
             bannedUsers: bannedUsers.size,
             mutedUsers: mutedUsers.size,
             uptime: process.uptime(),
