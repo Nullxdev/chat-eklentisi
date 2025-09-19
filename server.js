@@ -160,7 +160,7 @@ app.post('/admin/mute', (req, res) => {
 
         res.json({ 
             success: true, 
-            message: `${targetUser} 5 dakika boyunca susturuldu!`
+            message: `${targetUser} 5 dakika boyunca susturuldunuz!`
         });
 
     } catch (error) {
