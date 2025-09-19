@@ -103,10 +103,18 @@ class VenoxChat {
                 document.getElementById('vxMessageInput').placeholder = 'Mesaj göndermek için üye olunuz.';
                 document.getElementById('vxMessageInput').disabled = true;
                 document.getElementById('vxSendBtn').disabled = true;
+                this.updateWelcomeMessage('Mesaj göndermek için giriş yapınız.');
             }
         } catch (e) {
             console.log('Kullanıcı bilgileri çıkarılamadı, varsayılan misafir kullanılıyor');
             this.currentUser.isGuest = true;
+        }
+    }
+
+    updateWelcomeMessage(message) {
+        const welcomeMessageDiv = document.getElementById('vxWelcomeMessage');
+        if (welcomeMessageDiv) {
+            welcomeMessageDiv.textContent = message;
         }
     }
 
@@ -249,7 +257,7 @@ class VenoxChat {
         const replyButton = `<button class="vx-reply-btn" data-username="${username}" data-message-text="${this.escapeHtml(message)}">Yanıtla</button>`;
 
         const adminActions = this.currentUser.isAdmin && !isCurrentUser ? `
-            <div class="vx-user-actions">
+            <div class="vx-user-actions hidden" data-username="${username}">
                 <button class="vx-action-btn mute-btn" data-username="${username}">Sustur (5dk)</button>
                 <button class="vx-action-btn ban-btn" data-username="${username}">Yasakla</button>
                 <button class="vx-action-btn unmute-btn" data-username="${username}">Susturmayı Kaldır</button>
@@ -267,11 +275,11 @@ class VenoxChat {
         messageDiv.innerHTML = `
             <img src="${avatarSrc}" alt="${username}" class="vx-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=3498db&color=ffffff&size=32'">
             <div class="vx-message-content">
-                <div class="vx-username">
+                <div class="vx-username" data-username="${username}">
                     ${username}
                     ${isUserAdmin ? '<span class="vx-admin-badge">Admin</span>' : ''}
-                    ${adminActions}
                 </div>
+                ${adminActions}
                 <div class="vx-message-text">${this.escapeHtml(message)}</div>
                 ${this.isVideoLink(message) ? this.createVideoPreview(message) : ''}
             </div>
@@ -298,6 +306,16 @@ class VenoxChat {
         });
 
         if (this.currentUser.isAdmin) {
+            const usernameDiv = messageDiv.querySelector('.vx-username');
+            if (usernameDiv) {
+                usernameDiv.addEventListener('click', () => {
+                    const actionsDiv = messageDiv.querySelector('.vx-user-actions');
+                    if (actionsDiv) {
+                        actionsDiv.classList.toggle('hidden');
+                    }
+                });
+            }
+
             messageDiv.querySelector('.mute-btn')?.addEventListener('click', (e) => this.muteUser(e.target.dataset.username));
             messageDiv.querySelector('.ban-btn')?.addEventListener('click', (e) => this.banUser(e.target.dataset.username));
             messageDiv.querySelector('.unmute-btn')?.addEventListener('click', (e) => this.unmuteUser(e.target.dataset.username));
@@ -601,7 +619,7 @@ class VenoxChat {
         const replyButton = `<button class="vx-reply-btn" data-username="${messageData.username}" data-message-text="${this.escapeHtml(messageData.message)}">Yanıtla</button>`;
 
         const adminActions = this.currentUser.isAdmin && messageData.username !== this.currentUser.name ? `
-            <div class="vx-user-actions">
+            <div class="vx-user-actions hidden" data-username="${messageData.username}">
                 <button class="vx-action-btn mute-btn" data-username="${messageData.username}">Sustur (5dk)</button>
                 <button class="vx-action-btn ban-btn" data-username="${messageData.username}">Yasakla</button>
                 <button class="vx-action-btn unmute-btn" data-username="${messageData.username}">Susturmayı Kaldır</button>
@@ -619,11 +637,11 @@ class VenoxChat {
         messageDiv.innerHTML = `
             <img src="${avatarSrc}" alt="${messageData.username}" class="vx-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(messageData.username)}&background=3498db&color=ffffff&size=32'">
             <div class="vx-message-content">
-                <div class="vx-username">
+                <div class="vx-username" data-username="${messageData.username}">
                     ${messageData.username}
                     ${isUserAdmin ? '<span class="vx-admin-badge">Admin</span>' : ''}
-                    ${adminActions}
                 </div>
+                ${adminActions}
                 <div class="vx-message-text">${this.escapeHtml(messageData.message)}</div>
                 ${this.isVideoLink(messageData.message) ? this.createVideoPreview(messageData.message) : ''}
             </div>
