@@ -1,0 +1,11 @@
+{
+  "name": "cheatglobal-venox-chat",
+  "version": "1.0.0",
+  "description": "CheatGlobal.com için gerçek zamanlı chat sistemi",
+  "main": "content.js",
+  "scripts": {
+    "build": "echo 'Chrome Extension için build işlemi gerekli değil'",
+    "dev": "echo 'Chrome Extension geliştirme modu için developer mode kullanın'"
+  },
+  "keywords": [
+    "chrome
