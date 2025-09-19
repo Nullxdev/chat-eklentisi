@@ -8,7 +8,7 @@ class VenoxChat {
         this.bannedUsers = new Set();
         this.cooldownTimer = null;
         this.pollingInterval = null;
-        this.activeUsersList = new Set(); // Artık Set
+        this.activeUsersList = new Set();
         this.init();
     }
 
@@ -91,10 +91,8 @@ class VenoxChat {
                 
                 if (avatarImg && avatarImg.src) {
                     let avatarSrc = avatarImg.src;
-                    if (avatarSrc.includes('/data/avatars/')) {
-                        if (avatarSrc.startsWith('/')) {
-                            avatarSrc = window.location.origin + avatarSrc;
-                        }
+                    if (avatarSrc.startsWith('/')) {
+                        avatarSrc = window.location.origin + avatarSrc;
                     }
                     this.currentUser.avatar = avatarSrc;
                 }
@@ -130,9 +128,9 @@ class VenoxChat {
             toggleBtn.style.right = '20px';
         } else {
             panel.classList.add('vx-chat-visible');
-            toggleBtn.style.right = '430px';
+            toggleBtn.style.right = '630px'; // Yeni genişliğe göre ayarlandı
             this.scrollToBottom();
-            this.fetchUsers(); // Açıldığında kullanıcıları güncelle
+            this.fetchUsers();
         }
         
         this.saveState();
@@ -207,15 +205,8 @@ class VenoxChat {
         if (isCurrentUser && this.currentUser.avatar) {
             avatarSrc = this.currentUser.avatar;
         } else {
-            const avatarMap = {
-                'gokaysevinc': 'https://cheatglobal.com/data/avatars/s/315/315079.jpg?1758126945',
-                'V4S': 'https://cheatglobal.com/data/avatars/s/100/100001.jpg?1234567890',
-                'TestUser': 'https://ui-avatars.com/api/?name=TestUser&background=2980b9&color=ffffff&size=32',
-                'Player123': 'https://ui-avatars.com/api/?name=Player123&background=27ae60&color=ffffff&size=32',
-                'GameMaster': 'https://ui-avatars.com/api/?name=GameMaster&background=8e44ad&color=ffffff&size=32'
-            };
-            
-            avatarSrc = avatarMap[username] || `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=3498db&color=ffffff&size=32`;
+            // Varsayılan avatar veya çekilen avatar
+            avatarSrc = `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=3498db&color=ffffff&size=32`;
         }
         
         let adminActions = '';
@@ -414,8 +405,8 @@ class VenoxChat {
                 this.updateMessagesFromServer(result.messages);
                 this.activeUsers = result.activeUsers || this.activeUsers;
                 this.updateActiveUsersDisplay();
-                this.fetchUsers();
             }
+            this.fetchUsers();
         } catch (error) {
             console.log('Server offline, using simulation mode');
             // Simülasyon moduna geçişi burada yönetebiliriz
@@ -430,24 +421,26 @@ class VenoxChat {
             }
         } catch (error) {
             console.log('Kullanıcı listesi alınamadı, simülasyon kullanılıyor.');
-            this.simulateUsers();
+            this.updateUsersList([this.currentUser.name]); // Sadece kendi kullanıcısını göster
         }
     }
 
     updateUsersList(users) {
         const usersListElement = document.getElementById('vxUsersList');
+        if (!usersListElement) return;
+        
         usersListElement.innerHTML = '';
         
-        users.forEach(user => {
+        users.forEach(username => {
             const userItem = document.createElement('div');
             userItem.className = 'vx-user-item';
             
-            const userAvatar = this.getUserAvatar(user);
-            const isUserAdmin = this.isUserAdmin(user);
+            const userAvatar = this.getUserAvatar(username);
+            const isUserAdmin = this.isUserAdmin(username);
 
             userItem.innerHTML = `
-                <img src="${userAvatar}" alt="${user}" class="vx-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(user)}&background=3498db&color=ffffff&size=32'">
-                <div class="vx-user-name">${user}</div>
+                <img src="${userAvatar}" alt="${username}" class="vx-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=3498db&color=ffffff&size=32'">
+                <div class="vx-user-name">${username}</div>
             `;
             
             usersListElement.appendChild(userItem);
@@ -460,21 +453,19 @@ class VenoxChat {
     }
 
     getUserAvatar(username) {
-        // Örnek avatarlar
-        const avatarMap = {
-            'gokaysevinc': 'https://cheatglobal.com/data/avatars/s/315/315079.jpg?1758126945',
-            'V4S': 'https://cheatglobal.com/data/avatars/s/100/100001.jpg?1234567890',
-            // Diğer özel kullanıcılar
-        };
-        return avatarMap[username] || `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=3498db&color=ffffff&size=32`;
+        if (username === this.currentUser.name && this.currentUser.avatar) {
+            return this.currentUser.avatar;
+        }
+        
+        // Sunucu tarafından avatar bilgisi gelirse o kullanılacak
+        const userMessage = this.messages.find(msg => msg.username === username && msg.avatar);
+        if (userMessage) {
+            return userMessage.avatar;
+        }
+
+        return `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=3498db&color=ffffff&size=32`;
     }
 
-    simulateUsers() {
-        const simulatedUsers = ['gokaysevinc', 'V4S', 'TestUser', 'Player123', 'GameMaster'];
-        const uniqueUsers = [...new Set([...simulatedUsers, this.currentUser.name])];
-        this.updateUsersList(uniqueUsers);
-    }
-    
     updateMessagesFromServer(serverMessages) {
         const messagesArea = document.getElementById('vxMessagesArea');
         const currentMessageIds = new Set(Array.from(messagesArea.children)
