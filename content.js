@@ -82,8 +82,7 @@ class VenoxChat {
             const bulkDeleteBar = document.createElement('div');
             bulkDeleteBar.id = 'vxBulkDeleteBar';
             bulkDeleteBar.className = 'vx-bulk-delete-bar';
-            bulkDeleteBar.innerHTML = 'Seçilen mesajları sil (0)';
-            bulkDeleteBar.addEventListener('click', () => this.bulkDeleteMessages());
+            bulkDeleteBar.innerHTML = `<button class="vx-bulk-delete-btn">Seçilen 0 mesajı sil</button>`;
             document.getElementById('vxMessagesArea').prepend(bulkDeleteBar);
         }
     }
@@ -355,8 +354,8 @@ class VenoxChat {
         const bar = document.getElementById('vxBulkDeleteBar');
         if (this.selectedMessages.size > 0) {
             bar.style.display = 'flex';
-            bar.innerHTML = `<button class="vx-bulk-delete-btn">Seçilen ${this.selectedMessages.size} mesajı sil</button>`;
-            bar.querySelector('.vx-bulk-delete-btn').addEventListener('click', () => this.bulkDeleteMessages());
+            const button = bar.querySelector('.vx-bulk-delete-btn');
+            button.textContent = `Seçilen ${this.selectedMessages.size} mesajı sil`;
         } else {
             bar.style.display = 'none';
         }
