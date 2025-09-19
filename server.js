@@ -4,24 +4,26 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-app.use(cors());
+// CORS ayarları
+const corsOptions = {
+    origin: ['https://cheatglobal.com', 'http://localhost:3000'],
+    optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 
-// In-memory storage (production'da Redis kullan)
+// In-memory storage
 let messages = [];
 let activeUsers = new Set();
 let bannedUsers = new Set();
 let mutedUsers = new Set();
 
-// Cleanup old messages (son 100 mesajı sakla)
 setInterval(() => {
     if (messages.length > 100) {
         messages = messages.slice(-100);
     }
-}, 60000); // Her dakika temizle
+}, 60000);
 
-// Health check
 app.get('/', (req, res) => {
     res.json({ 
         success: true, 
@@ -35,10 +37,9 @@ app.get('/', (req, res) => {
     });
 });
 
-// Get recent messages
 app.get('/messages', (req, res) => {
     try {
-        const recentMessages = messages.slice(-50); // Son 50 mesaj
+        const recentMessages = messages.slice(-50);
         res.json({ 
             success: true, 
             messages: recentMessages,
@@ -49,12 +50,10 @@ app.get('/messages', (req, res) => {
     }
 });
 
-// Send message
 app.post('/messages', (req, res) => {
     try {
         const { username, message, avatar, isAdmin } = req.body;
 
-        // Validation
         if (!username || !message) {
             return res.status(400).json({ success: false, message: 'Username ve mesaj gerekli' });
         }
@@ -63,7 +62,6 @@ app.post('/messages', (req, res) => {
             return res.status(400).json({ success: false, message: 'Mesaj çok uzun' });
         }
         
-        // Susturulmuş veya yasaklı kullanıcı kontrolü
         if (bannedUsers.has(username) || mutedUsers.has(username)) {
             return res.status(403).json({ success: false, message: 'Yasaklı veya susturulmuş kullanıcı' });
         }
@@ -80,7 +78,6 @@ app.post('/messages', (req, res) => {
         messages.push(newMessage);
         activeUsers.add(username);
 
-        // Auto-cleanup inactive users (5 dakika sonra)
         setTimeout(() => {
             activeUsers.delete(username);
         }, 300000);
@@ -97,7 +94,6 @@ app.post('/messages', (req, res) => {
     }
 });
 
-// Delete message
 app.delete('/messages/:id', (req, res) => {
     const { id } = req.params;
     const { adminUser } = req.body;
@@ -117,7 +113,6 @@ app.delete('/messages/:id', (req, res) => {
 });
 
 
-// Admin endpoints
 app.post('/admin/mute', (req, res) => {
     try {
         const { adminUser, targetUser, duration } = req.body;
@@ -128,7 +123,6 @@ app.post('/admin/mute', (req, res) => {
 
         mutedUsers.add(targetUser);
 
-        // Belirli bir süre sonra susturmayı kaldır
         setTimeout(() => {
             mutedUsers.delete(targetUser);
         }, duration);
@@ -204,9 +198,7 @@ app.post('/admin/unban', (req, res) => {
     }
 });
 
-// Get server stats
 app.get('/stats', (req, res) => {
-    // VenoX kullanıcısını her zaman aktif kullanıcılar listesine ekle
     const currentActiveUsers = new Set(activeUsers);
     currentActiveUsers.add('VenoX');
 
@@ -224,17 +216,14 @@ app.get('/stats', (req, res) => {
     });
 });
 
-// Error handling
 app.use((err, req, res, next) => {
     console.error(err.stack);
     res.status(500).json({ success: false, message: 'Sunucu hatası' });
 });
 
-// Start server
 app.listen(PORT, () => {
     console.log(`VenoX Chat Server running on port ${PORT}`);
     
-    // Add some initial system messages
     messages.push({
         id: Date.now(),
         username: 'System',
