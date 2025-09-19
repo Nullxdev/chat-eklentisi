@@ -28,7 +28,7 @@
     position: fixed !important;
     bottom: 20px !important;
     right: 100px !important;
-    width: 600px !important; /* Genişlik artırıldı */
+    width: 600px !important;
     height: 550px !important;
     background: #1e2328 !important;
     border-radius: 8px !important;
@@ -194,6 +194,7 @@
     align-items: center;
     gap: 6px;
     line-height: 1.375;
+    cursor: pointer; /* Kullanıcı adına tıklanabilir olması için */
 }
 
 .vx-admin-badge {
@@ -218,17 +219,18 @@
 .vx-user-actions {
     display: none;
     position: absolute;
-    top: -8px;
-    right: 16px;
+    top: 100%; /* Mesajın altına konumlandır */
+    left: 16px; /* Avatarın yanından başla */
     background: #18191c;
     border: 1px solid #3f4147;
     border-radius: 8px;
     padding: 4px;
     gap: 4px;
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+    z-index: 10;
 }
 
-.vx-message:hover .vx-user-actions {
+.vx-user-actions.visible {
     display: flex;
 }
 
@@ -267,7 +269,6 @@
     padding: 4px 6px;
     border-radius: 3px;
     transition: all 0.2s;
-    margin-left: 8px;
 }
 
 .vx-delete-btn:hover {
@@ -355,10 +356,10 @@
     margin-top: 8px;
     border-radius: 8px;
     overflow: hidden;
-    max-width: 100%; /* Video genişliğini ayarla */
+    max-width: 100%;
     position: relative;
     border: 1px solid #40444b;
-    aspect-ratio: 16 / 9; /* 16:9 en boy oranı */
+    aspect-ratio: 16 / 9;
 }
 
 .vx-video-preview iframe {
@@ -367,7 +368,6 @@
     display: block;
     border: none;
 }
-
 
 .vx-notification {
     position: fixed;
@@ -397,7 +397,6 @@
     display: none !important;
 }
 
-/* New styles for user list */
 .vx-users-sidebar {
     width: 200px;
     background: #2f3136;
@@ -481,4 +480,61 @@
     border-radius: 50%;
     background-color: #43b581;
     box-shadow: 0 0 6px #43b581;
+}
+
+.vx-new-message-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #f04747;
+    color: white;
+    border-radius: 50%;
+    width: 25px;
+    height: 25px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: bold;
+    border: 2px solid #1e2328;
+    z-index: 2147483647;
+}
+
+.vx-message-meta {
+    display: flex;
+    position: absolute;
+    top: -15px;
+    right: 5px;
+    background: #18191c;
+    border: 1px solid #3f4147;
+    border-radius: 4px;
+    padding: 4px;
+    gap: 4px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s, visibility 0.2s;
+    z-index: 10;
+}
+
+.vx-message:hover .vx-message-meta {
+    opacity: 1;
+    visibility: visible;
+}
+
+.vx-reply-btn {
+    background: none;
+    border: none;
+    color: #b9bbbe;
+    font-size: 11px;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 3px;
+    transition: all 0.2s;
+    font-weight: 500;
+}
+
+.vx-reply-btn:hover {
+    background: rgba(79, 84, 92, 0.16);
+    color: #dcddde;
 }
