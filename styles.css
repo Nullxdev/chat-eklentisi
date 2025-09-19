@@ -28,7 +28,7 @@
     position: fixed !important;
     bottom: 20px !important;
     right: 100px !important;
-    width: 400px !important;
+    width: 600px !important; /* Genişlik artırıldı */
     height: 550px !important;
     background: #1e2328 !important;
     border-radius: 8px !important;
@@ -504,10 +504,4 @@
     border-radius: 50%;
     background-color: #43b581;
     box-shadow: 0 0 6px #43b581;
-}
-
-.vx-main-content {
-    display: flex;
-    flex: 1;
-    overflow: hidden;
 }
