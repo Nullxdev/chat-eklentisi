@@ -4,7 +4,6 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// CORS ayarları
 const corsOptions = {
     origin: ['https://cheatglobal.com', 'http://localhost:3000'],
     optionsSuccessStatus: 200
@@ -12,7 +11,6 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// In-memory storage
 let messages = [];
 let activeUsers = new Set();
 let bannedUsers = new Set();
@@ -112,6 +110,22 @@ app.delete('/messages/:id', (req, res) => {
     }
 });
 
+app.delete('/messages/bulk', (req, res) => {
+    const { messageIds, adminUser } = req.body;
+    
+    if (adminUser !== 'VenoX') {
+        return res.status(403).json({ success: false, message: 'Yetki yok' });
+    }
+    
+    const initialLength = messages.length;
+    messages = messages.filter(msg => !messageIds.includes(msg.id.toString()));
+    
+    if (messages.length < initialLength) {
+        res.json({ success: true, message: 'Mesajlar silindi' });
+    } else {
+        res.status(404).json({ success: false, message: 'Mesaj bulunamadı' });
+    }
+});
 
 app.post('/admin/mute', (req, res) => {
     try {
@@ -123,13 +137,30 @@ app.post('/admin/mute', (req, res) => {
 
         mutedUsers.add(targetUser);
 
+        messages.push({
+            id: Date.now(),
+            username: 'System',
+            message: `@${targetUser} 5 dakika boyunca susturuldu.`,
+            isAdmin: true,
+            isSystem: true,
+            timestamp: new Date().toISOString(),
+        });
+
         setTimeout(() => {
             mutedUsers.delete(targetUser);
+            messages.push({
+                id: Date.now(),
+                username: 'System',
+                message: `@${targetUser} susturması sona erdi.`,
+                isAdmin: true,
+                isSystem: true,
+                timestamp: new Date().toISOString(),
+            });
         }, duration);
 
         res.json({ 
             success: true, 
-            message: `${targetUser} susturuldu` 
+            message: `${targetUser} 5 dakika boyunca susturuldu!`
         });
 
     } catch (error) {
@@ -146,6 +177,15 @@ app.post('/admin/unmute', (req, res) => {
         }
 
         mutedUsers.delete(targetUser);
+        
+        messages.push({
+            id: Date.now(),
+            username: 'System',
+            message: `@${targetUser} susturması kaldırıldı.`,
+            isAdmin: true,
+            isSystem: true,
+            timestamp: new Date().toISOString(),
+        });
 
         res.json({ 
             success: true, 
@@ -168,9 +208,18 @@ app.post('/admin/ban', (req, res) => {
         bannedUsers.add(targetUser);
         activeUsers.delete(targetUser);
 
+        messages.push({
+            id: Date.now(),
+            username: 'System',
+            message: `@${targetUser} sohbetten yasaklandı.`,
+            isAdmin: true,
+            isSystem: true,
+            timestamp: new Date().toISOString(),
+        });
+
         res.json({ 
             success: true, 
-            message: `${targetUser} yasaklandı` 
+            message: `${targetUser} sohbetten yasaklandınız!` 
         });
 
     } catch (error) {
@@ -187,6 +236,15 @@ app.post('/admin/unban', (req, res) => {
         }
 
         bannedUsers.delete(targetUser);
+
+        messages.push({
+            id: Date.now(),
+            username: 'System',
+            message: `@${targetUser} yasağı kaldırıldı.`,
+            isAdmin: true,
+            isSystem: true,
+            timestamp: new Date().toISOString(),
+        });
 
         res.json({ 
             success: true, 
