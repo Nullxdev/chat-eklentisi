@@ -8,12 +8,7 @@ class VenoxChat {
         this.bannedUsers = new Set();
         this.cooldownTimer = null;
         this.pollingInterval = null;
-        this.activeUsersList = new Set([this.currentUser.name]);
-        this.onlineUsers = [
-            { name: this.currentUser.name, status: 'online', avatar: this.currentUser.avatar },
-            { name: 'gokaysevinc', status: 'online', avatar: 'https://cheatglobal.com/data/avatars/s/315/315079.jpg' },
-            { name: 'V4S', status: 'online', avatar: 'https://ui-avatars.com/api/?name=V4S&background=27ae60&color=ffffff&size=32' },
-        ];
+        this.activeUsersList = new Set(); // Artık Set
         this.init();
     }
 
@@ -95,10 +90,8 @@ class VenoxChat {
                 this.currentUser.isAdmin = this.currentUser.name === 'VenoX';
                 
                 if (avatarImg && avatarImg.src) {
-                    // Avatar src'den tam URL'yi al
                     let avatarSrc = avatarImg.src;
                     if (avatarSrc.includes('/data/avatars/')) {
-                        // Eğer relative path ise, base URL ekle
                         if (avatarSrc.startsWith('/')) {
                             avatarSrc = window.location.origin + avatarSrc;
                         }
@@ -112,11 +105,9 @@ class VenoxChat {
     }
 
     setupEventListeners() {
-        // Toggle button
         document.getElementById('vx-chat-toggle-btn').addEventListener('click', () => this.toggleChat());
         document.getElementById('vx-close-btn').addEventListener('click', () => this.toggleChat());
 
-        // Message input
         const messageInput = document.getElementById('vxMessageInput');
         const sendBtn = document.getElementById('vxSendBtn');
         
@@ -131,13 +122,17 @@ class VenoxChat {
 
     toggleChat() {
         const panel = document.getElementById('vx-chat-panel');
+        const toggleBtn = document.getElementById('vx-chat-toggle-btn');
         this.isMinimized = !this.isMinimized;
         
         if (this.isMinimized) {
             panel.classList.remove('vx-chat-visible');
+            toggleBtn.style.right = '20px';
         } else {
             panel.classList.add('vx-chat-visible');
+            toggleBtn.style.right = '430px';
             this.scrollToBottom();
+            this.fetchUsers(); // Açıldığında kullanıcıları güncelle
         }
         
         this.saveState();
@@ -173,14 +168,12 @@ class VenoxChat {
         
         if (!message || sendBtn.disabled) return;
         
-        // Check if user is banned
         if (this.bannedUsers.has(this.currentUser.name)) {
             this.showNotification('Yasaklı kullanıcısınız, mesaj gönderemezsiniz.', 'error');
             return;
         }
 
         try {
-            // Send message to server
             await this.apiRequest('messages', {
                 method: 'POST',
                 body: JSON.stringify({
@@ -195,7 +188,6 @@ class VenoxChat {
             this.startCooldown();
             
         } catch (error) {
-            // Fallback to local message if server fails
             this.addLocalMessage(this.currentUser.name, message, true);
             input.value = '';
             this.startCooldown();
@@ -215,7 +207,6 @@ class VenoxChat {
         if (isCurrentUser && this.currentUser.avatar) {
             avatarSrc = this.currentUser.avatar;
         } else {
-            // Simulated users için farklı avatarlar
             const avatarMap = {
                 'gokaysevinc': 'https://cheatglobal.com/data/avatars/s/315/315079.jpg?1758126945',
                 'V4S': 'https://cheatglobal.com/data/avatars/s/100/100001.jpg?1234567890',
@@ -227,7 +218,6 @@ class VenoxChat {
             avatarSrc = avatarMap[username] || `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=3498db&color=ffffff&size=32`;
         }
         
-        // Admin action buttons
         let adminActions = '';
         if (this.currentUser.isAdmin && !isCurrentUser) {
             const actions = [];
@@ -236,7 +226,6 @@ class VenoxChat {
                 actions.push(`<button class="vx-action-btn" onclick="venoxChat.muteUser('${username}')">Sustur</button>`);
                 actions.push(`<button class="vx-action-btn" onclick="venoxChat.banUser('${username}')">Yasakla</button>`);
                 
-                // Sadece VenoX yönetici yapabilir
                 if (this.currentUser.name === 'VenoX') {
                     actions.push(`<button class="vx-action-btn vx-promote-btn" onclick="venoxChat.promoteToAdmin('${username}')">Yönetici Yap</button>`);
                 }
@@ -247,7 +236,6 @@ class VenoxChat {
             }
         }
         
-        // Sadece VenoX mesaj silebilir
         let deleteButton = '';
         if (this.currentUser.name === 'VenoX') {
             deleteButton = `<button class="vx-delete-btn" onclick="venoxChat.deleteMessage(${messageId}, this.closest('.vx-message'))">🗑️</button>`;
@@ -270,7 +258,6 @@ class VenoxChat {
         messagesArea.appendChild(messageDiv);
         this.scrollToBottom();
         
-        // Limit messages to prevent memory issues
         while (messagesArea.children.length > 100) {
             messagesArea.removeChild(messagesArea.firstChild);
         }
@@ -362,12 +349,10 @@ class VenoxChat {
     deleteMessage(messageId, messageElement) {
         if (this.currentUser.name !== 'VenoX') return;
         
-        // Remove message from DOM
         if (messageElement && messageElement.parentNode) {
             messageElement.remove();
         }
         
-        // Try to delete from server
         this.apiRequest(`messages/${messageId}`, {
             method: 'DELETE',
             body: JSON.stringify({
@@ -383,13 +368,11 @@ class VenoxChat {
     promoteToAdmin(username) {
         if (this.currentUser.name !== 'VenoX') return;
         
-        // Add to local admin list
         if (!this.adminUsers) {
             this.adminUsers = new Set(['VenoX']);
         }
         this.adminUsers.add(username);
         
-        // Try to promote on server
         this.apiRequest('admin/promote', {
             method: 'POST',
             body: JSON.stringify({
@@ -419,20 +402,9 @@ class VenoxChat {
     startChatPolling() {
         this.stopChatPolling();
         
-        // Fetch messages from server
         this.pollingInterval = setInterval(() => {
             this.fetchMessages();
-        }, 3000); // Her 3 saniyede mesajları çek
-
-        // Fallback to simulation if server fails
-        setTimeout(() => {
-            this.simulateActivity();
-        }, Math.random() * 15000 + 10000);
-
-        // Update active users count
-        setInterval(() => {
-            this.updateActiveUsers();
-        }, 30000);
+        }, 3000); 
     }
 
     async fetchMessages() {
@@ -442,22 +414,75 @@ class VenoxChat {
                 this.updateMessagesFromServer(result.messages);
                 this.activeUsers = result.activeUsers || this.activeUsers;
                 this.updateActiveUsersDisplay();
+                this.fetchUsers();
             }
         } catch (error) {
-            // Server'a ulaşılamazsa simülasyon moduna geç
             console.log('Server offline, using simulation mode');
+            // Simülasyon moduna geçişi burada yönetebiliriz
         }
     }
 
+    async fetchUsers() {
+        try {
+            const result = await this.apiRequest('stats');
+            if (result.success && result.stats && result.stats.activeUsersList) {
+                this.updateUsersList(result.stats.activeUsersList);
+            }
+        } catch (error) {
+            console.log('Kullanıcı listesi alınamadı, simülasyon kullanılıyor.');
+            this.simulateUsers();
+        }
+    }
+
+    updateUsersList(users) {
+        const usersListElement = document.getElementById('vxUsersList');
+        usersListElement.innerHTML = '';
+        
+        users.forEach(user => {
+            const userItem = document.createElement('div');
+            userItem.className = 'vx-user-item';
+            
+            const userAvatar = this.getUserAvatar(user);
+            const isUserAdmin = this.isUserAdmin(user);
+
+            userItem.innerHTML = `
+                <img src="${userAvatar}" alt="${user}" class="vx-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(user)}&background=3498db&color=ffffff&size=32'">
+                <div class="vx-user-name">${user}</div>
+            `;
+            
+            usersListElement.appendChild(userItem);
+        });
+        
+        const userCountBadge = document.getElementById('vxUserCountBadge');
+        if (userCountBadge) {
+            userCountBadge.textContent = users.length;
+        }
+    }
+
+    getUserAvatar(username) {
+        // Örnek avatarlar
+        const avatarMap = {
+            'gokaysevinc': 'https://cheatglobal.com/data/avatars/s/315/315079.jpg?1758126945',
+            'V4S': 'https://cheatglobal.com/data/avatars/s/100/100001.jpg?1234567890',
+            // Diğer özel kullanıcılar
+        };
+        return avatarMap[username] || `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=3498db&color=ffffff&size=32`;
+    }
+
+    simulateUsers() {
+        const simulatedUsers = ['gokaysevinc', 'V4S', 'TestUser', 'Player123', 'GameMaster'];
+        const uniqueUsers = [...new Set([...simulatedUsers, this.currentUser.name])];
+        this.updateUsersList(uniqueUsers);
+    }
+    
     updateMessagesFromServer(serverMessages) {
         const messagesArea = document.getElementById('vxMessagesArea');
-        const currentMessageIds = Array.from(messagesArea.children)
+        const currentMessageIds = new Set(Array.from(messagesArea.children)
             .filter(el => el.dataset.messageId)
-            .map(el => el.dataset.messageId);
+            .map(el => el.dataset.messageId));
 
-        // Yeni mesajları ekle
         serverMessages.forEach(msg => {
-            if (!currentMessageIds.includes(msg.id.toString())) {
+            if (!currentMessageIds.has(msg.id.toString())) {
                 this.addServerMessage(msg);
             }
         });
@@ -494,7 +519,6 @@ class VenoxChat {
         messagesArea.appendChild(messageDiv);
         this.scrollToBottom();
         
-        // Limit messages to prevent memory issues
         while (messagesArea.children.length > 100) {
             if (messagesArea.firstChild.dataset && messagesArea.firstChild.dataset.messageId) {
                 messagesArea.removeChild(messagesArea.firstChild);
@@ -518,35 +542,12 @@ class VenoxChat {
         }
     }
 
-    simulateActivity() {
-        if (Math.random() < 0.3) { // 30% chance
-            const users = ['gokaysevinc', 'V4S', 'TestUser', 'Player123', 'GameMaster'];
-            const messages = ['Merhaba!', 'Nasıl gidiyor?', 'Kimse var mı?', 'Bu harika!', 'Teşekkürler'];
-            
-            const randomUser = users[Math.floor(Math.random() * users.length)];
-            const randomMessage = messages[Math.floor(Math.random() * messages.length)];
-            
-            if (!this.bannedUsers.has(randomUser) && !this.mutedUsers.has(randomUser)) {
-                this.addLocalMessage(randomUser, randomMessage, false);
-            }
-        }
-    }
-
-    updateActiveUsers() {
-        this.activeUsers = Math.max(1, this.activeUsers + (Math.random() > 0.5 ? 1 : -1));
-        const countElement = document.querySelector('.vx-active-users-count');
-        if (countElement) {
-            countElement.textContent = this.activeUsers;
-        }
-    }
-
     scrollToBottom() {
         const messagesArea = document.getElementById('vxMessagesArea');
         messagesArea.scrollTop = messagesArea.scrollHeight;
     }
 
     showNotification(message, type = "info", duration = 3000) {
-        // Remove existing notifications
         document.querySelectorAll('.vx-notification').forEach(n => n.remove());
         
         const notification = document.createElement('div');
@@ -579,7 +580,7 @@ class VenoxChat {
             const savedState = localStorage.getItem('venoxChatState');
             if (savedState) {
                 const state = JSON.parse(savedState);
-                this.isMinimized = state.isMinimized !== false; // Default to minimized
+                this.isMinimized = state.isMinimized !== false;
                 if (state.user) {
                     Object.assign(this.currentUser, state.user);
                 }
