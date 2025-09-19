@@ -9,6 +9,7 @@ class VenoxChat {
         this.cooldownTimer = null;
         this.pollingInterval = null;
         this.unreadMessages = 0;
+        this.selectedMessages = new Set();
         this.init();
     }
 
@@ -76,6 +77,17 @@ class VenoxChat {
             </div>
         `;
         document.body.appendChild(panel);
+        
+        // Toplu silme barı ekle
+        if (this.currentUser.isAdmin) {
+            const bulkDeleteBar = document.createElement('div');
+            bulkDeleteBar.id = 'vxBulkDeleteBar';
+            bulkDeleteBar.className = 'vx-bulk-delete-bar';
+            bulkDeleteBar.innerHTML = 'Seçilen mesajları sil (0)';
+            bulkDeleteBar.style.display = 'none'; // Başlangıçta gizli
+            document.getElementById('vxMessagesArea').prepend(bulkDeleteBar);
+            bulkDeleteBar.addEventListener('click', () => this.bulkDeleteMessages());
+        }
     }
 
     extractUserInfo() {
@@ -194,7 +206,7 @@ class VenoxChat {
             
             return await response.json();
         } catch (error) {
-            this.showNotification(error.message, "error");
+            this.showNotification(`Sunucuya ulaşılamıyor: ${error.message}`, "error");
             throw error;
         }
     }
@@ -271,8 +283,11 @@ class VenoxChat {
                 ${deleteButton}
             </div>
         `;
+        
+        const selector = this.currentUser.isAdmin ? `<div class="vx-message-selector" data-message-id="${messageId}"></div>` : '';
 
         messageDiv.innerHTML = `
+            ${selector}
             <img src="${avatarSrc}" alt="${username}" class="vx-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=3498db&color=ffffff&size=32'">
             <div class="vx-message-content">
                 <div class="vx-username" data-username="${username}">
@@ -306,6 +321,20 @@ class VenoxChat {
         });
 
         if (this.currentUser.isAdmin) {
+            const selector = messageDiv.querySelector('.vx-message-selector');
+            if (selector) {
+                selector.addEventListener('click', () => {
+                    selector.classList.toggle('selected');
+                    const messageId = selector.dataset.messageId;
+                    if (selector.classList.contains('selected')) {
+                        this.selectedMessages.add(messageId);
+                    } else {
+                        this.selectedMessages.delete(messageId);
+                    }
+                    this.updateBulkDeleteBar();
+                });
+            }
+
             const usernameDiv = messageDiv.querySelector('.vx-username');
             if (usernameDiv) {
                 usernameDiv.addEventListener('click', () => {
@@ -321,6 +350,38 @@ class VenoxChat {
             messageDiv.querySelector('.unmute-btn')?.addEventListener('click', (e) => this.unmuteUser(e.target.dataset.username));
             messageDiv.querySelector('.unban-btn')?.addEventListener('click', (e) => this.unbanUser(e.target.dataset.username));
             messageDiv.querySelector('.vx-delete-btn')?.addEventListener('click', () => this.deleteMessage(messageId, messageDiv));
+        }
+    }
+
+    updateBulkDeleteBar() {
+        const bar = document.getElementById('vxBulkDeleteBar');
+        if (this.selectedMessages.size > 0) {
+            bar.style.display = 'flex';
+            bar.textContent = `Seçilen mesajları sil (${this.selectedMessages.size})`;
+        } else {
+            bar.style.display = 'none';
+        }
+    }
+
+    async bulkDeleteMessages() {
+        if (this.selectedMessages.size === 0) return;
+        
+        const messageIds = Array.from(this.selectedMessages);
+
+        try {
+            await this.apiRequest('messages/bulk', {
+                method: 'DELETE',
+                body: JSON.stringify({
+                    adminUser: this.currentUser.name,
+                    messageIds: messageIds
+                })
+            });
+            this.selectedMessages.clear();
+            this.updateBulkDeleteBar();
+            this.addSystemMessage('Seçili mesajlar silindi.');
+        } catch (error) {
+            console.error('Toplu silme başarısız oldu:', error);
+            this.showNotification('Toplu silme başarısız.', 'error');
         }
     }
 
@@ -387,7 +448,7 @@ class VenoxChat {
         
         try {
             const duration = 5 * 60 * 1000;
-            await this.apiRequest('admin/mute', {
+            const res = await this.apiRequest('admin/mute', {
                 method: 'POST',
                 body: JSON.stringify({
                     adminUser: this.currentUser.name,
@@ -396,7 +457,7 @@ class VenoxChat {
                 })
             });
             this.mutedUsers.add(username);
-            this.addSystemMessage(`${username} 5 dakika boyunca susturuldu.`);
+            this.addSystemMessage(res.message);
         } catch (error) {
             console.error('Server error, using local mute:', error);
             this.mutedUsers.add(username);
@@ -409,7 +470,7 @@ class VenoxChat {
         if (!this.currentUser.isAdmin) return;
         
         try {
-            await this.apiRequest('admin/unmute', {
+            const res = await this.apiRequest('admin/unmute', {
                 method: 'POST',
                 body: JSON.stringify({
                     adminUser: this.currentUser.name,
@@ -417,7 +478,7 @@ class VenoxChat {
                 })
             });
             this.mutedUsers.delete(username);
-            this.addSystemMessage(`${username} susturması kaldırıldı.`);
+            this.addSystemMessage(res.message);
         } catch (error) {
             console.error('Server error, using local unmute:', error);
             this.mutedUsers.delete(username);
@@ -429,7 +490,7 @@ class VenoxChat {
         if (!this.currentUser.isAdmin) return;
         
         try {
-            await this.apiRequest('admin/ban', {
+            const res = await this.apiRequest('admin/ban', {
                 method: 'POST',
                 body: JSON.stringify({
                     adminUser: this.currentUser.name,
@@ -437,7 +498,7 @@ class VenoxChat {
                 })
             });
             this.bannedUsers.add(username);
-            this.addSystemMessage(`${username} yasaklandı.`);
+            this.addSystemMessage(res.message);
         } catch (error) {
             console.error('Server error, using local ban:', error);
             this.bannedUsers.add(username);
@@ -449,7 +510,7 @@ class VenoxChat {
         if (!this.currentUser.isAdmin) return;
         
         try {
-            await this.apiRequest('admin/unban', {
+            const res = await this.apiRequest('admin/unban', {
                 method: 'POST',
                 body: JSON.stringify({
                     adminUser: this.currentUser.name,
@@ -457,7 +518,7 @@ class VenoxChat {
                 })
             });
             this.bannedUsers.delete(username);
-            this.addSystemMessage(`${username} yasağı kaldırıldı.`);
+            this.addSystemMessage(res.message);
         } catch (error) {
             console.error('Server error, using local unban:', error);
             this.bannedUsers.delete(username);
@@ -468,10 +529,6 @@ class VenoxChat {
     async deleteMessage(messageId, messageElement) {
         if (!this.currentUser.isAdmin) return;
         
-        if (messageElement && messageElement.parentNode) {
-            messageElement.remove();
-        }
-        
         try {
             await this.apiRequest(`messages/${messageId}`, {
                 method: 'DELETE',
@@ -479,11 +536,13 @@ class VenoxChat {
                     adminUser: this.currentUser.name
                 })
             });
+            if (messageElement && messageElement.parentNode) {
+                messageElement.remove();
+            }
+            this.addSystemMessage('Mesaj silindi.');
         } catch (error) {
             console.error('Could not delete from server:', error);
         }
-        
-        this.addSystemMessage('Mesaj silindi.');
     }
 
     isUserAdmin(username) {
@@ -587,9 +646,17 @@ class VenoxChat {
 
     updateMessagesFromServer(serverMessages) {
         const messagesArea = document.getElementById('vxMessagesArea');
-        const currentMessageIds = new Set(Array.from(messagesArea.children)
-            .filter(el => el.dataset.messageId)
-            .map(el => el.dataset.messageId));
+        const currentMessageElements = Array.from(messagesArea.children).filter(el => el.dataset.messageId);
+        const currentMessageIds = new Set(currentMessageElements.map(el => el.dataset.messageId));
+
+        const serverMessageIds = new Set(serverMessages.map(msg => msg.id.toString()));
+
+        // Sunucuda olmayan mesajları kaldır
+        currentMessageElements.forEach(el => {
+            if (!serverMessageIds.has(el.dataset.messageId)) {
+                el.remove();
+            }
+        });
 
         let newMessages = false;
         serverMessages.forEach(msg => {
@@ -634,7 +701,10 @@ class VenoxChat {
             </div>
         `;
 
+        const selector = this.currentUser.isAdmin ? `<div class="vx-message-selector" data-message-id="${messageData.id}"></div>` : '';
+
         messageDiv.innerHTML = `
+            ${selector}
             <img src="${avatarSrc}" alt="${messageData.username}" class="vx-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(messageData.username)}&background=3498db&color=ffffff&size=32'">
             <div class="vx-message-content">
                 <div class="vx-username" data-username="${messageData.username}">
