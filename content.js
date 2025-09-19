@@ -21,13 +21,11 @@ class VenoxChat {
     }
 
     createChatUI() {
-        // Toggle Button
         const toggleBtn = document.createElement('div');
         toggleBtn.id = 'vx-chat-toggle-btn';
         toggleBtn.innerHTML = `<span>💬</span>`;
         document.body.appendChild(toggleBtn);
 
-        // Chat Panel
         const panel = document.createElement('div');
         panel.id = 'vx-chat-panel';
         panel.innerHTML = `
@@ -127,7 +125,7 @@ class VenoxChat {
             toggleBtn.style.right = '20px';
         } else {
             panel.classList.add('vx-chat-visible');
-            toggleBtn.style.right = '630px'; // Yeni genişliğe göre ayarlandı
+            toggleBtn.style.right = '630px'; 
             this.scrollToBottom();
             this.fetchUsers();
         }
@@ -176,7 +174,7 @@ class VenoxChat {
         }
 
         try {
-            const res = await this.apiRequest('messages', {
+            await this.apiRequest('messages', {
                 method: 'POST',
                 body: JSON.stringify({
                     username: this.currentUser.name,
@@ -212,27 +210,17 @@ class VenoxChat {
             avatarSrc = `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=3498db&color=ffffff&size=32`;
         }
         
-        let adminActions = '';
-        if (this.currentUser.isAdmin && !isCurrentUser) {
-            const actions = [];
-            
-            if (!isUserAdmin) {
-                actions.push(`<button class="vx-action-btn" onclick="venoxChat.muteUser('${username}')">Sustur (5dk)</button>`);
-                actions.push(`<button class="vx-action-btn" onclick="venoxChat.banUser('${username}')">Yasakla</button>`);
-                actions.push(`<button class="vx-action-btn" onclick="venoxChat.unmuteUser('${username}')">Susturmayı Kaldır</button>`);
-                actions.push(`<button class="vx-action-btn" onclick="venoxChat.unbanUser('${username}')">Yasağı Kaldır</button>`);
-            }
-            
-            if (actions.length > 0) {
-                adminActions = `<div class="vx-user-actions">${actions.join('')}</div>`;
-            }
-        }
+        const deleteButton = this.currentUser.isAdmin ? `<button class="vx-delete-btn" data-message-id="${messageId}">🗑️</button>` : '';
         
-        let deleteButton = '';
-        if (this.currentUser.isAdmin) {
-            deleteButton = `<button class="vx-delete-btn" onclick="venoxChat.deleteMessage(${messageId}, this.closest('.vx-message'))">🗑️</button>`;
-        }
-        
+        const adminActions = this.currentUser.isAdmin && !isCurrentUser ? `
+            <div class="vx-user-actions">
+                <button class="vx-action-btn mute-btn" data-username="${username}">Sustur (5dk)</button>
+                <button class="vx-action-btn ban-btn" data-username="${username}">Yasakla</button>
+                <button class="vx-action-btn unmute-btn" data-username="${username}">Susturmayı Kaldır</button>
+                <button class="vx-action-btn unban-btn" data-username="${username}">Yasağı Kaldır</button>
+            </div>
+        ` : '';
+
         messageDiv.innerHTML = `
             <img src="${avatarSrc}" alt="${username}" class="vx-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=3498db&color=ffffff&size=32'">
             <div class="vx-message-content">
@@ -249,7 +237,16 @@ class VenoxChat {
         
         messagesArea.appendChild(messageDiv);
         this.scrollToBottom();
-        
+
+        // Olay dinleyicilerini dinamik olarak ekle
+        if (this.currentUser.isAdmin) {
+            messageDiv.querySelector('.mute-btn')?.addEventListener('click', (e) => this.muteUser(e.target.dataset.username));
+            messageDiv.querySelector('.ban-btn')?.addEventListener('click', (e) => this.banUser(e.target.dataset.username));
+            messageDiv.querySelector('.unmute-btn')?.addEventListener('click', (e) => this.unmuteUser(e.target.dataset.username));
+            messageDiv.querySelector('.unban-btn')?.addEventListener('click', (e) => this.unbanUser(e.target.dataset.username));
+            messageDiv.querySelector('.vx-delete-btn')?.addEventListener('click', (e) => this.deleteMessage(e.target.dataset.messageId, messageDiv));
+        }
+
         while (messagesArea.children.length > 100) {
             messagesArea.removeChild(messagesArea.firstChild);
         }
@@ -317,7 +314,7 @@ class VenoxChat {
         if (!this.currentUser.isAdmin) return;
         
         try {
-            const duration = 5 * 60 * 1000; // 5 dakika
+            const duration = 5 * 60 * 1000;
             await this.apiRequest('admin/mute', {
                 method: 'POST',
                 body: JSON.stringify({
@@ -475,7 +472,6 @@ class VenoxChat {
         const usersListElement = document.getElementById('vxUsersList');
         if (!usersListElement) return;
         
-        // VenoX kullanıcısını her zaman listeye ekle
         let venoxExists = users.some(u => u.username === 'VenoX');
         if (!venoxExists && this.currentUser.name === 'VenoX') {
             users.push({ username: 'VenoX', avatar: this.currentUser.avatar });
@@ -541,22 +537,16 @@ class VenoxChat {
         const avatarSrc = messageData.avatar || 
             `https://ui-avatars.com/api/?name=${encodeURIComponent(messageData.username)}&background=3498db&color=ffffff&size=32`;
         
-        let adminActions = '';
-        if (this.currentUser.isAdmin && messageData.username !== this.currentUser.name) {
-             adminActions = `
-                <div class="vx-user-actions">
-                    <button class="vx-action-btn" onclick="venoxChat.muteUser('${messageData.username}')">Sustur (5dk)</button>
-                    <button class="vx-action-btn" onclick="venoxChat.banUser('${messageData.username}')">Yasakla</button>
-                    <button class="vx-action-btn" onclick="venoxChat.unmuteUser('${messageData.username}')">Susturmayı Kaldır</button>
-                    <button class="vx-action-btn" onclick="venoxChat.unbanUser('${messageData.username}')">Yasağı Kaldır</button>
-                </div>
-            `;
-        }
+        const deleteButton = this.currentUser.isAdmin ? `<button class="vx-delete-btn" data-message-id="${messageData.id}">🗑️</button>` : '';
 
-        let deleteButton = '';
-        if (this.currentUser.isAdmin) {
-             deleteButton = `<button class="vx-delete-btn" onclick="venoxChat.deleteMessage(${messageData.id}, this.closest('.vx-message'))">🗑️</button>`;
-        }
+        const adminActions = this.currentUser.isAdmin && messageData.username !== this.currentUser.name ? `
+            <div class="vx-user-actions">
+                <button class="vx-action-btn mute-btn" data-username="${messageData.username}">Sustur (5dk)</button>
+                <button class="vx-action-btn ban-btn" data-username="${messageData.username}">Yasakla</button>
+                <button class="vx-action-btn unmute-btn" data-username="${messageData.username}">Susturmayı Kaldır</button>
+                <button class="vx-action-btn unban-btn" data-username="${messageData.username}">Yasağı Kaldır</button>
+            </div>
+        ` : '';
 
         messageDiv.innerHTML = `
             <img src="${avatarSrc}" alt="${messageData.username}" class="vx-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(messageData.username)}&background=3498db&color=ffffff&size=32'">
@@ -575,6 +565,14 @@ class VenoxChat {
         messagesArea.appendChild(messageDiv);
         this.scrollToBottom();
         
+        if (this.currentUser.isAdmin) {
+            messageDiv.querySelector('.mute-btn')?.addEventListener('click', (e) => this.muteUser(e.target.dataset.username));
+            messageDiv.querySelector('.ban-btn')?.addEventListener('click', (e) => this.banUser(e.target.dataset.username));
+            messageDiv.querySelector('.unmute-btn')?.addEventListener('click', (e) => this.unmuteUser(e.target.dataset.username));
+            messageDiv.querySelector('.unban-btn')?.addEventListener('click', (e) => this.unbanUser(e.target.dataset.username));
+            messageDiv.querySelector('.vx-delete-btn')?.addEventListener('click', (e) => this.deleteMessage(e.target.dataset.messageId, messageDiv));
+        }
+
         while (messagesArea.children.length > 100) {
             if (messagesArea.firstChild.dataset && messagesArea.firstChild.dataset.messageId) {
                 messagesArea.removeChild(messagesArea.firstChild);
