@@ -6,6 +6,7 @@ class VenoxChat {
         this.activeUsers = 1;
         this.mutedUsers = new Set();
         this.bannedUsers = new Set();
+        this.blockedPrefixes = new Set(); // Yeni: Engellenen prefix'ler
         this.cooldownTimer = null;
         this.pollingInterval = null;
         this.unreadMessages = 0;
@@ -28,6 +29,7 @@ class VenoxChat {
         this.setupEventListeners();
         this.startChatPolling();
         this.checkForSavedState();
+        this.loadBlockedPrefixes(); // Yeni: Kaydedilmiş prefix'leri yükle
         setInterval(() => this.updateTimestamps(), 60000);
     }
     
@@ -101,7 +103,56 @@ class VenoxChat {
             bulkDeleteBar.className = 'vx-bulk-delete-bar';
             bulkDeleteBar.innerHTML = `<button class="vx-bulk-delete-btn">Seçilen 0 mesajı sil</button>`;
             document.getElementById('vxMessagesArea').prepend(bulkDeleteBar);
+            
+            // Admin panelleri ekle
+            this.createAdminPanels();
         }
+    }
+
+    createAdminPanels() {
+        // Toplu ban paneli
+        const bulkBanPanel = document.createElement('div');
+        bulkBanPanel.id = 'vxBulkBanPanel';
+        bulkBanPanel.className = 'vx-bulk-ban-panel';
+        bulkBanPanel.innerHTML = `
+            <div class="vx-bulk-ban-header">
+                <span>🔨 Toplu Ban</span>
+                <button id="vxToggleBulkBan" class="vx-toggle-bulk-ban">Aç</button>
+            </div>
+            <div class="vx-bulk-ban-content" id="vxBulkBanContent">
+                <div class="vx-bulk-ban-input-group">
+                    <label>Kullanıcı adı başlangıcı:</label>
+                    <input type="text" id="vxBulkBanPrefix" placeholder="örn: user, bot, spam" maxlength="20">
+                    <button id="vxBulkBanExecute" class="vx-bulk-ban-execute">Toplu Ban</button>
+                </div>
+                <div class="vx-bulk-ban-preview" id="vxBulkBanPreview"></div>
+            </div>
+        `;
+        
+        // Prefix engelleme paneli
+        const blockPrefixPanel = document.createElement('div');
+        blockPrefixPanel.id = 'vxBlockPrefixPanel';
+        blockPrefixPanel.className = 'vx-block-prefix-panel';
+        blockPrefixPanel.innerHTML = `
+            <div class="vx-block-prefix-header">
+                <span>🚫 Kullanıcı Adı Engelleme</span>
+                <button id="vxToggleBlockPrefix" class="vx-toggle-block-prefix">Aç</button>
+            </div>
+            <div class="vx-block-prefix-content" id="vxBlockPrefixContent">
+                <div class="vx-block-prefix-input-group">
+                    <label>Engellenecek prefix:</label>
+                    <input type="text" id="vxBlockPrefixInput" placeholder="örn: user, bot, spam" maxlength="20">
+                    <button id="vxAddBlockPrefix" class="vx-add-block-prefix">Engelle</button>
+                </div>
+                <div class="vx-blocked-prefixes-list" id="vxBlockedPrefixesList">
+                    <div class="vx-blocked-prefixes-header">Engellenen Prefix'ler:</div>
+                    <div class="vx-blocked-prefixes-items" id="vxBlockedPrefixesItems"></div>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('vx-chat-panel').appendChild(bulkBanPanel);
+        document.getElementById('vx-chat-panel').appendChild(blockPrefixPanel);
     }
 
     extractUserInfo() {
@@ -164,6 +215,20 @@ class VenoxChat {
             if (bulkDeleteBar) {
                 bulkDeleteBar.querySelector('.vx-bulk-delete-btn').addEventListener('click', () => this.bulkDeleteMessages());
             }
+            
+            // Toplu ban event listeners
+            document.getElementById('vxToggleBulkBan')?.addEventListener('click', () => this.toggleBulkBanPanel());
+            document.getElementById('vxBulkBanPrefix')?.addEventListener('input', (e) => this.previewBulkBan(e.target.value));
+            document.getElementById('vxBulkBanExecute')?.addEventListener('click', () => this.executeBulkBan());
+            
+            // Prefix engelleme event listeners
+            document.getElementById('vxToggleBlockPrefix')?.addEventListener('click', () => this.toggleBlockPrefixPanel());
+            document.getElementById('vxAddBlockPrefix')?.addEventListener('click', () => this.addBlockedPrefix());
+            document.getElementById('vxBlockPrefixInput')?.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.addBlockedPrefix();
+                }
+            });
         }
     }
 
@@ -270,7 +335,22 @@ class VenoxChat {
         }
     }
 
+    // Yeni: Kullanıcı adı prefix kontrolü
+    isUsernameBlocked(username) {
+        for (let prefix of this.blockedPrefixes) {
+            if (username.toLowerCase().startsWith(prefix.toLowerCase())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     addLocalMessage(username, message, isCurrentUser = false) {
+        // Engellenen prefix kontrolü
+        if (this.isUsernameBlocked(username) && !isCurrentUser) {
+            return; // Mesajı gösterme
+        }
+
         const messagesArea = document.getElementById('vxMessagesArea');
         const messageDiv = document.createElement('div');
         const messageId = Date.now() + Math.random();
@@ -422,6 +502,228 @@ class VenoxChat {
             console.error('Toplu silme başarısız oldu:', error);
             this.showNotification('Toplu silme başarısız.', 'error');
         }
+    }
+
+    // Yeni: Toplu ban metodları
+    toggleBulkBanPanel() {
+        const content = document.getElementById('vxBulkBanContent');
+        const toggle = document.getElementById('vxToggleBulkBan');
+        
+        if (content.style.display === 'none' || !content.style.display) {
+            content.style.display = 'block';
+            toggle.textContent = 'Kapat';
+            this.previewBulkBan(document.getElementById('vxBulkBanPrefix').value);
+        } else {
+            content.style.display = 'none';
+            toggle.textContent = 'Aç';
+        }
+    }
+
+    previewBulkBan(prefix) {
+        const previewDiv = document.getElementById('vxBulkBanPreview');
+        if (!prefix.trim()) {
+            previewDiv.innerHTML = '';
+            return;
+        }
+        
+        const matchingUsers = this.getActiveUsersList().filter(username => 
+            username.toLowerCase().startsWith(prefix.toLowerCase()) && 
+            username !== this.currentUser.name &&
+            username !== 'VenoX'
+        );
+        
+        const messageUsers = [...new Set(this.messages
+            .filter(msg => msg.username.toLowerCase().startsWith(prefix.toLowerCase()) && 
+                          msg.username !== this.currentUser.name &&
+                          msg.username !== 'VenoX')
+            .map(msg => msg.username)
+        )];
+        
+        const allMatchingUsers = [...new Set([...matchingUsers, ...messageUsers])];
+        
+        if (allMatchingUsers.length === 0) {
+            previewDiv.innerHTML = '<div class="vx-preview-empty">Bu prefix ile eşleşen kullanıcı bulunamadı</div>';
+            return;
+        }
+        
+        previewDiv.innerHTML = `
+            <div class="vx-preview-header">
+                <strong>${allMatchingUsers.length} kullanıcı banlanacak:</strong>
+            </div>
+            <div class="vx-preview-users">
+                ${allMatchingUsers.map(user => `
+                    <span class="vx-preview-user ${this.bannedUsers.has(user) ? 'already-banned' : ''}">${user}</span>
+                `).join('')}
+            </div>
+            ${allMatchingUsers.some(user => this.bannedUsers.has(user)) ? 
+                '<div class="vx-preview-note">🟡 Sarı olanlar zaten banlanmış</div>' : ''
+            }
+        `;
+    }
+
+    async executeBulkBan() {
+        const prefix = document.getElementById('vxBulkBanPrefix').value.trim();
+        if (!prefix) {
+            this.showNotification('Lütfen bir prefix girin', 'error');
+            return;
+        }
+        
+        if (!confirm(`"${prefix}" ile başlayan tüm kullanıcıları banlamak istediğinizden emin misiniz?`)) {
+            return;
+        }
+        
+        const activeUsers = this.getActiveUsersList();
+        const messageUsers = [...new Set(this.messages.map(msg => msg.username))];
+        const allUsers = [...new Set([...activeUsers, ...messageUsers])];
+        
+        const targetUsers = allUsers.filter(username => 
+            username.toLowerCase().startsWith(prefix.toLowerCase()) && 
+            username !== this.currentUser.name &&
+            username !== 'VenoX' &&
+            !this.bannedUsers.has(username)
+        );
+        
+        if (targetUsers.length === 0) {
+            this.showNotification('Banlanacak kullanıcı bulunamadı', 'error');
+            return;
+        }
+        
+        try {
+            const result = await this.apiRequest('admin/bulk-ban', {
+                method: 'POST',
+                body: JSON.stringify({
+                    adminUser: this.currentUser.name,
+                    prefix: prefix,
+                    targetUsers: targetUsers
+                })
+            });
+            
+            targetUsers.forEach(user => this.bannedUsers.add(user));
+            this.showNotification(`${targetUsers.length} kullanıcı başarıyla banlandı`, 'success');
+            this.addSystemMessage(`🔨 Toplu ban: "${prefix}" prefix'i ile ${targetUsers.length} kullanıcı banlandı.`);
+            this.previewBulkBan(prefix);
+            
+        } catch (error) {
+            console.error('Sunucu hatası, yerel toplu ban uygulanıyor:', error);
+            targetUsers.forEach(user => this.bannedUsers.add(user));
+            this.addSystemMessage(`🔨 Toplu ban (yerel): "${prefix}" prefix'i ile ${targetUsers.length} kullanıcı banlandı.`);
+            this.showNotification(`${targetUsers.length} kullanıcı yerel olarak banlandı`, 'info');
+            this.previewBulkBan(prefix);
+        }
+        
+        document.getElementById('vxBulkBanPrefix').value = '';
+    }
+
+    // Yeni: Prefix engelleme metodları
+    toggleBlockPrefixPanel() {
+        const content = document.getElementById('vxBlockPrefixContent');
+        const toggle = document.getElementById('vxToggleBlockPrefix');
+        
+        if (content.style.display === 'none' || !content.style.display) {
+            content.style.display = 'block';
+            toggle.textContent = 'Kapat';
+            this.updateBlockedPrefixesList();
+        } else {
+            content.style.display = 'none';
+            toggle.textContent = 'Aç';
+        }
+    }
+
+    addBlockedPrefix() {
+        const input = document.getElementById('vxBlockPrefixInput');
+        const prefix = input.value.trim().toLowerCase();
+        
+        if (!prefix) {
+            this.showNotification('Lütfen bir prefix girin', 'error');
+            return;
+        }
+        
+        if (prefix === 'venox' || prefix === 'admin') {
+            this.showNotification('Bu prefix engellenemez', 'error');
+            return;
+        }
+        
+        if (this.blockedPrefixes.has(prefix)) {
+            this.showNotification('Bu prefix zaten engellenmiş', 'error');
+            return;
+        }
+        
+        this.blockedPrefixes.add(prefix);
+        this.saveBlockedPrefixes();
+        this.updateBlockedPrefixesList();
+        
+        input.value = '';
+        this.showNotification(`"${prefix}" prefix'i engellendi`, 'success');
+        this.addSystemMessage(`🚫 "${prefix}" ile başlayan kullanıcı adları engellendi.`);
+        
+        // API'ye gönder
+        this.syncBlockedPrefixesToServer();
+    }
+
+    removeBlockedPrefix(prefix) {
+        if (confirm(`"${prefix}" prefix engelini kaldırmak istediğinizden emin misiniz?`)) {
+            this.blockedPrefixes.delete(prefix);
+            this.saveBlockedPrefixes();
+            this.updateBlockedPrefixesList();
+            this.showNotification(`"${prefix}" prefix engeli kaldırıldı`, 'success');
+            this.addSystemMessage(`✅ "${prefix}" prefix engeli kaldırıldı.`);
+            this.syncBlockedPrefixesToServer();
+        }
+    }
+
+    updateBlockedPrefixesList() {
+        const container = document.getElementById('vxBlockedPrefixesItems');
+        if (!container) return;
+        
+        if (this.blockedPrefixes.size === 0) {
+            container.innerHTML = '<div class="vx-no-blocked-prefixes">Henüz engellenmiş prefix yok</div>';
+            return;
+        }
+        
+        container.innerHTML = Array.from(this.blockedPrefixes).map(prefix => `
+            <div class="vx-blocked-prefix-item">
+                <span class="vx-blocked-prefix-name">${prefix}</span>
+                <button class="vx-remove-blocked-prefix" onclick="window.venoxChat.removeBlockedPrefix('${prefix}')">×</button>
+            </div>
+        `).join('');
+    }
+
+    saveBlockedPrefixes() {
+        try {
+            localStorage.setItem('vx-blocked-prefixes', JSON.stringify(Array.from(this.blockedPrefixes)));
+        } catch (e) {
+            console.log('Blocked prefixes kaydedilemedi:', e);
+        }
+    }
+
+    loadBlockedPrefixes() {
+        try {
+            const saved = localStorage.getItem('vx-blocked-prefixes');
+            if (saved) {
+                this.blockedPrefixes = new Set(JSON.parse(saved));
+            }
+        } catch (e) {
+            console.log('Blocked prefixes yüklenemedi:', e);
+        }
+    }
+
+    async syncBlockedPrefixesToServer() {
+        try {
+            await this.apiRequest('admin/blocked-prefixes', {
+                method: 'POST',
+                body: JSON.stringify({
+                    adminUser: this.currentUser.name,
+                    blockedPrefixes: Array.from(this.blockedPrefixes)
+                })
+            });
+        } catch (error) {
+            console.error('Blocked prefixes sunucuya gönderilemedi:', error);
+        }
+    }
+
+    getActiveUsersList() {
+        const usersList = document.querySelectorAll('.vx-user-name');
+        return Array.from(usersList).map(el => el.textContent);
     }
 
     isVideoLink(message) {
@@ -609,6 +911,13 @@ class VenoxChat {
         }, 3000); 
     }
 
+    stopChatPolling() {
+        if (this.pollingInterval) {
+            clearInterval(this.pollingInterval);
+            this.pollingInterval = null;
+        }
+    }
+
     async fetchMessages() {
         try {
             const result = await this.apiRequest('messages');
@@ -646,14 +955,17 @@ class VenoxChat {
         const usersListElement = document.getElementById('vxUsersList');
         if (!usersListElement) return;
         
-        let venoxExists = users.some(u => u.username === 'VenoX');
+        // Engellenen prefix'lere sahip kullanıcıları filtrele
+        const filteredUsers = users.filter(user => !this.isUsernameBlocked(user.username));
+        
+        let venoxExists = filteredUsers.some(u => u.username === 'VenoX');
         if (!venoxExists && this.currentUser.name === 'VenoX') {
-            users.push({ username: 'VenoX', avatar: this.currentUser.avatar });
+            filteredUsers.push({ username: 'VenoX', avatar: this.currentUser.avatar });
         }
         
         usersListElement.innerHTML = '';
         
-        users.forEach(user => {
+        filteredUsers.forEach(user => {
             const username = user.username;
             const avatar = user.avatar || this.getUserAvatar(username);
 
@@ -670,7 +982,7 @@ class VenoxChat {
         
         const userCountBadge = document.getElementById('vxUserCountBadge');
         if (userCountBadge) {
-            userCountBadge.textContent = users.length;
+            userCountBadge.textContent = filteredUsers.length;
         }
     }
 
@@ -685,6 +997,13 @@ class VenoxChat {
         }
 
         return `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=3498db&color=ffffff&size=32`;
+    }
+
+    updateActiveUsersDisplay() {
+        const activeUsersCount = document.querySelector('.vx-active-users-count');
+        if (activeUsersCount) {
+            activeUsersCount.textContent = this.activeUsers;
+        }
     }
 
     updateMessagesFromServer(serverMessages) {
@@ -715,6 +1034,11 @@ class VenoxChat {
     }
 
     addServerMessage(messageData) {
+        // Engellenen prefix kontrolü
+        if (this.isUsernameBlocked(messageData.username)) {
+            return; // Mesajı gösterme
+        }
+
         const messagesArea = document.getElementById('vxMessagesArea');
         const messageDiv = document.createElement('div');
         messageDiv.className = 'vx-message';
@@ -731,4 +1055,105 @@ class VenoxChat {
             <div class="vx-user-actions" data-username="${messageData.username}">
                 <button class="vx-action-btn mute-btn" data-username="${messageData.username}">Sustur (5dk)</button>
                 <button class="vx-action-btn ban-btn" data-username="${messageData.username}">Yasakla</button>
-                <button class="vx-action-btn unmute-btn"
+                <button class="vx-action-btn unmute-btn" data-username="${messageData.username}">Susturmayı Kaldır</button>
+                <button class="vx-action-btn unban-btn" data-username="${messageData.username}">Yasağı Kaldır</button>
+            </div>
+        ` : '';
+
+        const messageMeta = `
+            <div class="vx-message-meta">
+                ${replyButton}
+                ${deleteButton}
+            </div>
+        `;
+
+        const selector = this.currentUser.isAdmin ? `<div class="vx-message-selector" data-message-id="${messageData.id}"></div>` : '';
+        const timestamp = `<span class="vx-timestamp" data-timestamp="${messageData.timestamp}">${this.formatTimestamp(new Date(messageData.timestamp))}</span>`;
+
+        messageDiv.innerHTML = `
+            ${selector}
+            <img src="${avatarSrc}" alt="${messageData.username}" class="vx-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(messageData.username)}&background=3498db&color=ffffff&size=32'">
+            <div class="vx-message-content">
+                <div class="vx-username" data-username="${messageData.username}">
+                    ${messageData.username}
+                    ${isUserAdmin ? '<span class="vx-admin-badge">Admin</span>' : ''}
+                    ${timestamp}
+                </div>
+                ${adminActions}
+                <div class="vx-message-text">${this.escapeHtml(messageData.message)}</div>
+                ${this.isVideoLink(messageData.message) ? this.createVideoPreview(messageData.message) : ''}
+            </div>
+            ${messageMeta}
+        `;
+        
+        messagesArea.appendChild(messageDiv);
+        this.scrollToBottom();
+
+        this.addMessageListeners(messageDiv, messageData.id);
+
+        while (messagesArea.children.length > 100) {
+            messagesArea.removeChild(messagesArea.firstChild);
+        }
+    }
+
+    scrollToBottom() {
+        const messagesArea = document.getElementById('vxMessagesArea');
+        if (messagesArea) {
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.className = `vx-notification ${type === 'error' ? 'vx-notification-error' : type === 'success' ? 'vx-notification-success' : ''}`;
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 3000);
+    }
+
+    saveState() {
+        try {
+            localStorage.setItem('vx-chat-state', JSON.stringify({
+                isMinimized: this.isMinimized
+            }));
+        } catch (e) {
+            console.log('State kaydedilemedi:', e);
+        }
+    }
+
+    checkForSavedState() {
+        try {
+            const savedState = localStorage.getItem('vx-chat-state');
+            if (savedState) {
+                const state = JSON.parse(savedState);
+                this.isMinimized = state.isMinimized !== false;
+                
+                const panel = document.getElementById('vx-chat-panel');
+                const toggleBtn = document.getElementById('vx-chat-toggle-btn');
+                
+                if (!this.isMinimized) {
+                    panel.classList.add('vx-chat-visible');
+                    toggleBtn.style.right = '630px';
+                }
+            } else {
+                this.isMinimized = true;
+            }
+        } catch (e) {
+            this.isMinimized = true;
+        }
+    }
+}
+
+// Global referans oluştur (removeBlockedPrefix için gerekli)
+window.venoxChat = new VenoxChat();
