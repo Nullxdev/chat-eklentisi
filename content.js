@@ -4621,40 +4621,4 @@ class VenoxChat {
     }
 
     updateUsersList(users) {
-        const usersListElement = document.getElementById('vxUsersList');
-        if (!usersListElement) return;
-        
-        let venoxExists = users.some(u => u.username === 'VenoX');
-        if (!venoxExists && this.currentUser.name === 'VenoX') {
-            users.push({ username: 'VenoX', avatar: this.currentUser.avatar });
-        }
-        
-        usersListElement.innerHTML = '';
-        
-        users.forEach(user => {
-            const username = user.username;
-            const avatar = user.avatar || this.getUserAvatar(username);
-
-            const userItem = document.createElement('div');
-            userItem.className = 'vx-user-item';
-            
-            userItem.innerHTML = `
-                <img src="${avatar}" alt="${username}" class="vx-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=3498db&color=ffffff&size=32'">
-                <div class="vx-user-name">${username}</div>
-            `;
-            
-            usersListElement.appendChild(userItem);
-        });
-        
-        const userCountBadge = document.getElementById('vxUserCountBadge');
-        if (userCountBadge) {
-            userCountBadge.textContent = users.length;
-        }
-    }
-
-    getUserAvatar(username) {
-        if (username === this.currentUser.name && this.currentUser.avatar) {
-            return this.currentUser.avatar;
-        }
-        
-        const userMessage = this.messages.find(msg => msg.
+        const usersListElement = document.getElementById('vx
