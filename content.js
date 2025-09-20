@@ -119,7 +119,7 @@ class VenoxChat {
                 <span>🔨 Toplu Ban</span>
                 <button id="vxToggleBulkBan" class="vx-toggle-bulk-ban">Aç</button>
             </div>
-            <div class="vx-bulk-ban-content" id="vxBulkBanContent">
+            <div class="vx-bulk-ban-content" id="vxBulkBanContent" style="display: none;">
                 <div class="vx-bulk-ban-input-group">
                     <label>Kullanıcı adı başlangıcı:</label>
                     <input type="text" id="vxBulkBanPrefix" placeholder="örn: user, bot, spam" maxlength="20">
@@ -138,7 +138,7 @@ class VenoxChat {
                 <span>🚫 Kullanıcı Adı Engelleme</span>
                 <button id="vxToggleBlockPrefix" class="vx-toggle-block-prefix">Aç</button>
             </div>
-            <div class="vx-block-prefix-content" id="vxBlockPrefixContent">
+            <div class="vx-block-prefix-content" id="vxBlockPrefixContent" style="display: none;">
                 <div class="vx-block-prefix-input-group">
                     <label>Engellenecek prefix:</label>
                     <input type="text" id="vxBlockPrefixInput" placeholder="örn: user, bot, spam" maxlength="20">
@@ -151,8 +151,9 @@ class VenoxChat {
             </div>
         `;
         
-        document.getElementById('vx-chat-panel').appendChild(bulkBanPanel);
-        document.getElementById('vx-chat-panel').appendChild(blockPrefixPanel);
+        // Panelleri body'ye ekle (chat panelinin dışına)
+        document.body.appendChild(bulkBanPanel);
+        document.body.appendChild(blockPrefixPanel);
     }
 
     extractUserInfo() {
